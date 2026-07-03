@@ -1,0 +1,15 @@
+openai
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-multipart
+aiofiles
+llama-index
+llama-index-embeddings-huggingface
+llama-index-vector-stores-qdrant
+llama-index-readers-file
+qdrant-client
+sentence-transformers
+torch
+llama-index-retrievers-bm25

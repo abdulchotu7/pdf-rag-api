@@ -1,0 +1,250 @@
+import asyncio
+from functools import partial
+
+from qdrant_client import QdrantClient
+from qdrant_client.http.exceptions import UnexpectedResponse
+from qdrant_client.models import (
+    Distance,
+    FieldCondition,
+    Filter,
+    MatchValue,
+    PointStruct,
+    VectorParams,
+)
+
+from app.core.config import settings
+from app.core.exceptions import VectorDBUnavailableError
+from app.core.logging import get_logger
+from app.schemas.models import SearchResult
+from app.vectordb.base import BaseVectorStore
+
+logger = get_logger("qdrant")
+
+
+class QdrantVectorStore(BaseVectorStore):
+    def __init__(self) -> None:
+        self._client: QdrantClient | None = None
+
+    def _get_client(self) -> QdrantClient:
+        if self._client is None:
+            self._client = QdrantClient(
+                host=settings.qdrant_host,
+                port=settings.qdrant_port,
+            )
+        return self._client
+
+    async def _run_sync(self, method, *args, **kwargs):
+        client = self._get_client()
+        fn = partial(method, *args, **kwargs)
+        return await asyncio.to_thread(fn)
+
+    async def collection_exists(self) -> bool:
+        try:
+            client = self._get_client()
+            collections = await asyncio.to_thread(client.get_collections)
+            return any(
+                c.name == settings.qdrant_collection
+                for c in collections.collections
+            )
+        except UnexpectedResponse as exc:
+            logger.error("Qdrant connection failed", exc_info=exc)
+            raise VectorDBUnavailableError(
+                f"Cannot connect to Qdrant: {exc}"
+            ) from exc
+
+    async def create_collection(self) -> None:
+        try:
+            client = self._get_client()
+            await asyncio.to_thread(
+                client.create_collection,
+                collection_name=settings.qdrant_collection,
+                vectors_config=VectorParams(
+                    size=settings.embedding_dimension,
+                    distance=Distance.COSINE,
+                ),
+            )
+            logger.info(
+                "Created Qdrant collection",
+                extra={"collection": settings.qdrant_collection},
+            )
+        except UnexpectedResponse as exc:
+            logger.error("Failed to create Qdrant collection", exc_info=exc)
+            raise VectorDBUnavailableError(
+                f"Cannot create collection: {exc}"
+            ) from exc
+
+    async def ensure_collection(self) -> None:
+        if not await self.collection_exists():
+            await self.create_collection()
+
+    async def upsert_chunks(
+        self,
+        vectors: list[list[float]],
+        payloads: list[dict],
+        ids: list[str],
+    ) -> None:
+        try:
+            client = self._get_client()
+            points = [
+                PointStruct(
+                    id=ids[i],
+                    vector=vectors[i],
+                    payload=payloads[i],
+                )
+                for i in range(len(ids))
+            ]
+            await asyncio.to_thread(
+                client.upsert,
+                collection_name=settings.qdrant_collection,
+                points=points,
+            )
+            logger.info(
+                "Upserted chunks to Qdrant",
+                extra={"count": len(points)},
+            )
+        except UnexpectedResponse as exc:
+            logger.error("Qdrant upsert failed", exc_info=exc)
+            raise VectorDBUnavailableError(
+                f"Failed to upsert vectors: {exc}"
+            ) from exc
+
+    async def search(
+        self,
+        query_vector: list[float],
+        top_k: int = 10,
+    ) -> list[SearchResult]:
+        try:
+            client = self._get_client()
+            response = await asyncio.to_thread(
+                client.query_points,
+                collection_name=settings.qdrant_collection,
+                query=query_vector,
+                limit=top_k,
+                with_payload=True,
+            )
+            return [
+                SearchResult(
+                    chunk_id=str(hit.id),
+                    document_id=hit.payload.get("document_id", ""),
+                    filename=hit.payload.get("filename", ""),
+                    page_number=hit.payload.get("page_number", 0),
+                    text=hit.payload.get("text", ""),
+                    score=hit.score,
+                )
+                for hit in response.points
+            ]
+        except UnexpectedResponse as exc:
+            logger.error("Qdrant search failed", exc_info=exc)
+            raise VectorDBUnavailableError(
+                f"Failed to search vectors: {exc}"
+            ) from exc
+
+    async def find_by_hash(self, content_hash: str) -> str | None:
+        try:
+            client = self._get_client()
+            qdrant_filter = Filter(
+                must=[
+                    FieldCondition(
+                        key="content_hash",
+                        match=MatchValue(value=content_hash),
+                    )
+                ]
+            )
+            result, _ = await asyncio.to_thread(
+                client.scroll,
+                collection_name=settings.qdrant_collection,
+                scroll_filter=qdrant_filter,
+                limit=1,
+                with_payload=True,
+            )
+            if result:
+                return result[0].payload.get("document_id")
+            return None
+        except UnexpectedResponse:
+            return None
+
+    async def list_documents(self) -> list[dict]:
+        try:
+            client = self._get_client()
+            result, _ = await asyncio.to_thread(
+                client.scroll,
+                collection_name=settings.qdrant_collection,
+                limit=100000,
+                with_payload=True,
+                with_vectors=False,
+            )
+            seen: dict[str, dict] = {}
+            for p in result:
+                pid = p.payload.get("document_id", "")
+                fname = p.payload.get("filename", "")
+                pn = p.payload.get("page_number", 0) or 0
+                if pid not in seen:
+                    seen[pid] = {
+                        "document_id": pid,
+                        "filename": fname,
+                        "chunks": 0,
+                        "pages": 0,
+                    }
+                seen[pid]["chunks"] += 1
+                if pn > seen[pid]["pages"]:
+                    seen[pid]["pages"] = pn
+            return list(seen.values())
+        except UnexpectedResponse as exc:
+            logger.error("Failed to list documents", exc_info=exc)
+            raise VectorDBUnavailableError(
+                f"Cannot list documents: {exc}"
+            ) from exc
+
+    async def delete_document(self, document_id: str) -> None:
+        try:
+            client = self._get_client()
+            qdrant_filter = Filter(
+                must=[
+                    FieldCondition(
+                        key="document_id",
+                        match=MatchValue(value=document_id),
+                    )
+                ]
+            )
+            scroll_result, _ = await asyncio.to_thread(
+                client.scroll,
+                collection_name=settings.qdrant_collection,
+                scroll_filter=qdrant_filter,
+                limit=10000,
+            )
+            point_ids = [p.id for p in scroll_result]
+            if point_ids:
+                await asyncio.to_thread(
+                    client.delete,
+                    collection_name=settings.qdrant_collection,
+                    points_selector=point_ids,
+                )
+            logger.info(
+                "Deleted document from Qdrant",
+                extra={
+                    "document_id": document_id,
+                    "points_removed": len(point_ids),
+                },
+            )
+        except UnexpectedResponse as exc:
+            logger.error("Qdrant delete failed", exc_info=exc)
+            raise VectorDBUnavailableError(
+                f"Failed to delete document: {exc}"
+            ) from exc
+
+    async def delete_collection(self) -> None:
+        try:
+            client = self._get_client()
+            await asyncio.to_thread(
+                client.delete_collection,
+                collection_name=settings.qdrant_collection,
+            )
+            logger.info(
+                "Deleted Qdrant collection",
+                extra={"collection": settings.qdrant_collection},
+            )
+        except UnexpectedResponse as exc:
+            logger.error("Failed to delete Qdrant collection", exc_info=exc)
+            raise VectorDBUnavailableError(
+                f"Cannot delete collection: {exc}"
+            ) from exc

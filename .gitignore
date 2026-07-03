@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.egg
+dist/
+build/
+.env
+uploads/
+*.pdf
+*.log
+.qdrant/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.playwright-mcp/
+rag-ui*.png
+tmp/
+The Little Book of OAuth 2.0 RFCs.pdf
