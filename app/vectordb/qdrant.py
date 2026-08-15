@@ -145,6 +145,9 @@ class QdrantVectorStore(BaseVectorStore):
                 for hit in response.points
             ]
         except UnexpectedResponse as exc:
+            if exc.status_code == 404:
+                # Collection doesn't exist yet — no data to search.
+                return []
             logger.error("Qdrant search failed", exc_info=exc)
             raise VectorDBUnavailableError(
                 f"Failed to search vectors: {exc}"
@@ -172,7 +175,10 @@ class QdrantVectorStore(BaseVectorStore):
                 return result[0].payload.get("document_id")
             return None
         except UnexpectedResponse as exc:
-            # Qdrant being down is not "no duplicate" — fail fast so the
+            if exc.status_code == 404:
+                # Collection doesn't exist yet — nothing can be a duplicate.
+                return None
+            # Real Qdrant failures are not "no duplicate" — fail fast so the
             # caller gets a clear 503 instead of a confusing upsert failure.
             logger.error("Qdrant dedup lookup failed", exc_info=exc)
             raise VectorDBUnavailableError(

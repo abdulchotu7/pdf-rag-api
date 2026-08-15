@@ -7,6 +7,7 @@ from llama_index.core.retrievers import QueryFusionRetriever
 from llama_index.core.schema import NodeWithScore, QueryBundle, TextNode
 from llama_index.retrievers.bm25 import BM25Retriever
 from qdrant_client import QdrantClient
+from qdrant_client.http.exceptions import UnexpectedResponse
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -121,12 +122,18 @@ class HybridRetriever:
             host=settings.qdrant_host,
             port=settings.qdrant_port,
         )
-        scroll_result, _ = await asyncio.to_thread(
-            client.scroll,
-            collection_name=settings.qdrant_collection,
-            limit=100000,
-            with_payload=True,
-        )
+        try:
+            scroll_result, _ = await asyncio.to_thread(
+                client.scroll,
+                collection_name=settings.qdrant_collection,
+                limit=100000,
+                with_payload=True,
+            )
+        except UnexpectedResponse as exc:
+            if exc.status_code == 404:
+                # Collection doesn't exist yet — no nodes for BM25.
+                return []
+            raise
         nodes = []
         for point in scroll_result:
             payload = point.payload or {}

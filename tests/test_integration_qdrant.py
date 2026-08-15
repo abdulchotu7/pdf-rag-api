@@ -76,3 +76,16 @@ async def test_upsert_search_dedup_delete_cycle(store):
 async def test_list_documents_missing_collection_returns_empty(store):
     await store.delete_collection()
     assert await store.list_documents() == []
+
+
+async def test_find_by_hash_missing_collection_returns_none(store):
+    # First upload hits this path — dedup must degrade to "no duplicate",
+    # not raise, when the collection doesn't exist yet.
+    await store.delete_collection()
+    assert await store.find_by_hash("abc123") is None
+
+
+async def test_search_missing_collection_returns_empty(store):
+    # Chat before any upload must not 503 on the missing collection.
+    await store.delete_collection()
+    assert await store.search([0.0] * settings.embedding_dimension, top_k=5) == []
