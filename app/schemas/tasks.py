@@ -1,6 +1,7 @@
+from datetime import datetime, timezone
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TaskStatus(str, Enum):
@@ -17,3 +18,4 @@ class TaskInfo(BaseModel):
     total: int = 0
     result: dict | None = None
     error: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
