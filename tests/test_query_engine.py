@@ -89,6 +89,24 @@ async def test_query_hybrid_path():
     assert len(resp.sources) > 0
 
 
+async def test_build_context_citations_match_deduped_sources():
+    from app.rag.query_engine import QueryEngine
+    from app.schemas.models import SearchResult
+
+    results = [
+        SearchResult(chunk_id="1", document_id="d", filename="a.pdf", page_number=1, text="one", score=1.0),
+        # Same (filename, page) as the first — must share citation [1].
+        SearchResult(chunk_id="2", document_id="d", filename="a.pdf", page_number=1, text="two", score=1.0),
+        SearchResult(chunk_id="3", document_id="d", filename="b.pdf", page_number=2, text="three", score=1.0),
+    ]
+    sources, context = QueryEngine._build_context(results)
+    assert len(sources) == 2
+    # Both duplicate chunks are labeled with the deduped source number.
+    assert context.count("[1]") == 2
+    assert "[2]" in context
+    assert "[3]" not in context
+
+
 async def test_stream_emits_done_on_no_results():
     engine, _ = _make_engine()
     events = [e async for e in engine.query_stream("nothing here")]

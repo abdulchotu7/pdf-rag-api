@@ -118,17 +118,17 @@ class QueryEngine:
     def _build_context(
         results: list[SearchResult],
     ) -> tuple[list[SourceNode], str]:
+        """Build the LLM context so citation numbers match the deduped
+        source list: chunks with the same (filename, page) share a number,
+        and the number is the source's position in the sources panel."""
         context_parts = []
-        seen = set()
-        sources = []
+        source_idx: dict[tuple[str, int], int] = {}
+        sources: list[SourceNode] = []
 
-        for idx, r in enumerate(results, 1):
-            context_parts.append(
-                f"[{idx}] Source: {r.filename}, Page {r.page_number}\n{r.text}"
-            )
+        for r in results:
             key = (r.filename, r.page_number)
-            if key not in seen:
-                seen.add(key)
+            if key not in source_idx:
+                source_idx[key] = len(sources) + 1
                 sources.append(
                     SourceNode(
                         page=r.page_number,
@@ -136,6 +136,10 @@ class QueryEngine:
                         score=r.score,
                     )
                 )
+            idx = source_idx[key]
+            context_parts.append(
+                f"[{idx}] Source: {r.filename}, Page {r.page_number}\n{r.text}"
+            )
 
         context = "\n\n".join(context_parts)
         return sources, context
