@@ -23,6 +23,17 @@ class IngestService:
     ) -> None:
         self._pipeline = pipeline
         self._vector_store = vector_store
+        self._background_tasks: set[asyncio.Task] = set()
+
+    def _spawn(self, coro) -> asyncio.Task:
+        """Create a background task and keep a strong reference until done.
+
+        Without a reference, the task can be garbage-collected mid-flight.
+        """
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
 
     async def list_documents(self) -> list[dict]:
         return await self._vector_store.list_documents()
@@ -84,7 +95,7 @@ class IngestService:
         content_hash = await asyncio.to_thread(self._hash_file, path)
         task_id = task_manager.create_task()
 
-        asyncio.create_task(
+        self._spawn(
             self._process_background(
                 task_id,
                 str(path),

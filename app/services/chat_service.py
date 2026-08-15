@@ -13,6 +13,17 @@ logger = get_logger("chat_service")
 class ChatService:
     def __init__(self, query_engine: QueryEngine) -> None:
         self._query_engine = query_engine
+        self._background_tasks: set[asyncio.Task] = set()
+
+    def _spawn(self, coro) -> asyncio.Task:
+        """Create a background task and keep a strong reference until done.
+
+        Without a reference, the task can be garbage-collected mid-flight.
+        """
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
 
     async def answer(self, request: ChatRequest) -> ChatResponse:
         logger.info(
@@ -27,7 +38,7 @@ class ChatService:
             "Async chat request created",
             extra={"question": request.question, "task_id": task_id},
         )
-        asyncio.create_task(self._process_answer(task_id, request.question))
+        self._spawn(self._process_answer(task_id, request.question))
         return task_id
 
     async def _process_answer(self, task_id: str, question: str) -> None:
