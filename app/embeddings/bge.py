@@ -16,6 +16,9 @@ class BGEEmbeddingProvider(BaseEmbedding):
         self._model_name = model_name
         self._device = device
         self._model: SentenceTransformer | None = None
+        # Serialize inference: concurrent encodes on one SentenceTransformer
+        # instance are not safe (parallel to_thread calls race the same model).
+        self._inference_lock = asyncio.Lock()
 
     @property
     def dimension(self) -> int:
@@ -50,12 +53,13 @@ class BGEEmbeddingProvider(BaseEmbedding):
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         try:
             model = self._load_model()
-            embeddings = await asyncio.to_thread(
-                model.encode,
-                texts,
-                normalize_embeddings=True,
-                show_progress_bar=False,
-            )
+            async with self._inference_lock:
+                embeddings = await asyncio.to_thread(
+                    model.encode,
+                    texts,
+                    normalize_embeddings=True,
+                    show_progress_bar=False,
+                )
             return embeddings.tolist()
         except Exception as exc:
             logger.error("Embedding generation failed", exc_info=exc)
