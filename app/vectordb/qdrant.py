@@ -207,6 +207,9 @@ class QdrantVectorStore(BaseVectorStore):
                     seen[pid]["pages"] = pn
             return list(seen.values())
         except UnexpectedResponse as exc:
+            if exc.status_code == 404:
+                # Collection doesn't exist yet — nothing to list.
+                return []
             logger.error("Failed to list documents", exc_info=exc)
             raise VectorDBUnavailableError(
                 f"Cannot list documents: {exc}"
