@@ -206,18 +206,6 @@
   .sources-pop.open { grid-template-rows: 1fr; opacity: 1; }
   .sources-inner { overflow: hidden; display: flex; flex-direction: column; gap: 4px; padding-top: 8px; }
   .sources-inner .src-card { width: 100%; cursor: pointer; }
-  .followups { padding: 12px 0 4px; }
-  .fu-label { font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
-  .fu-btn {
-    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
-    background: none; border: none; border-bottom: 1px solid #f0f1f3; padding: 7px 4px;
-    font-size: 13px; color: var(--text); font-family: var(--font); cursor: pointer;
-    border-radius: var(--radius-sm); transition: background var(--transition);
-    animation: fade-up 350ms cubic-bezier(0.23, 1, 0.32, 1) both;
-  }
-  .fu-btn:hover { background: var(--bg); }
-  .fu-btn svg { color: var(--text-tertiary); flex-shrink: 0; }
-  @keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
   /* Input */
   /* Composer */
@@ -469,7 +457,6 @@ const COPY_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" st
 const RETRY_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>';
 const UP_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12M15 5.88L14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88z"/></svg>';
 const DOWN_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2M9 18.12L10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88z"/></svg>';
-const ARROW_SVG = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10l-5 5 5 5"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>';
 const AVATAR_COLORS = ['#2563eb', '#16a34a', '#e56d24', '#9333ea', '#dc2626', '#0891b2', '#ca8a04', '#db2777'];
 
 function sourceInitials(filename) {
@@ -580,24 +567,6 @@ function buildAnswerFooter() {
   const downBtn = makeAction('Bad answer', DOWN_SVG);
   downBtn.addEventListener('click', () => downBtn.classList.toggle('on'));
   chat.append(actions);
-
-  const fu = document.createElement('div');
-  fu.className = 'followups';
-  const label = document.createElement('p');
-  label.className = 'fu-label';
-  label.textContent = 'Follow-ups';
-  fu.append(label);
-  ['Summarize the answer above', 'Explain this in simpler terms', 'What are the sources for this?'].forEach((text, i) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'fu-btn';
-    b.style.animationDelay = `${i * 90}ms`;
-    b.innerHTML = ARROW_SVG + `<span>${esc(text)}</span>`;
-    b.addEventListener('click', () => runAsk(text));
-    fu.append(b);
-  });
-  chat.append(fu);
-  fu.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
 function maybeAutoScroll() {
