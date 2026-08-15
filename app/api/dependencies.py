@@ -69,6 +69,7 @@ class AppContainer:
         self.ingest_service = IngestService(
             pipeline=self.streaming_pipeline,
             vector_store=self.vector_store,
+            hybrid_retriever=self.hybrid_retriever,
         )
         self.chat_service = ChatService(
             query_engine=self.query_engine,

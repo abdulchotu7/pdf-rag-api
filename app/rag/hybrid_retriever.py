@@ -106,6 +106,16 @@ class HybridRetriever:
                 extra={"node_count": len(nodes)},
             )
 
+    def invalidate_bm25(self) -> None:
+        """Drop the in-memory BM25 index so it is rebuilt from fresh data.
+
+        Call after ingestion or deletion changes the corpus.
+        """
+        with self._lock:
+            self._bm25_retriever = None
+            self._bm25_built = False
+        logger.info("BM25 index invalidated")
+
     async def _load_nodes_from_qdrant(self) -> list[TextNode]:
         client = QdrantClient(
             host=settings.qdrant_host,

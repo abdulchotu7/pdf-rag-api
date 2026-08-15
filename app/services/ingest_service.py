@@ -6,6 +6,7 @@ from pathlib import Path
 from app.core.config import settings
 from app.core.exceptions import EmptyUploadError, InvalidPDFError
 from app.core.logging import get_logger
+from app.rag.hybrid_retriever import HybridRetriever
 from app.rag.streaming_ingestion import StreamingIngestionPipeline
 from app.schemas.tasks import TaskStatus
 from app.schemas.models import UploadResponse
@@ -20,10 +21,16 @@ class IngestService:
         self,
         pipeline: StreamingIngestionPipeline,
         vector_store: BaseVectorStore,
+        hybrid_retriever: HybridRetriever | None = None,
     ) -> None:
         self._pipeline = pipeline
         self._vector_store = vector_store
+        self._hybrid_retriever = hybrid_retriever
         self._background_tasks: set[asyncio.Task] = set()
+
+    def _invalidate_bm25(self) -> None:
+        if self._hybrid_retriever is not None:
+            self._hybrid_retriever.invalidate_bm25()
 
     def _spawn(self, coro) -> asyncio.Task:
         """Create a background task and keep a strong reference until done.
@@ -40,6 +47,7 @@ class IngestService:
 
     async def delete_document(self, document_id: str) -> None:
         await self._vector_store.delete_document(document_id)
+        self._invalidate_bm25()
 
     async def upload_pdf(
         self,
@@ -68,6 +76,9 @@ class IngestService:
         finally:
             # Always clean up the temp file — success, duplicate, or failure.
             file_path.unlink(missing_ok=True)
+
+        if not result.get("duplicate"):
+            self._invalidate_bm25()
 
         return UploadResponse(
             document_id=result["document_id"],
@@ -129,6 +140,8 @@ class IngestService:
                 content_hash=content_hash,
                 task_id=task_id,
             )
+            if not result.get("duplicate"):
+                self._invalidate_bm25()
             task_manager.set_status(
                 task_id,
                 TaskStatus.completed,
