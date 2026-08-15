@@ -426,14 +426,16 @@ form.addEventListener('submit', async (e) => {
             }
             markdownBuffer += data.token;
 
-            if (!renderTimer && window.marked) {
-              renderTimer = setTimeout(() => { renderTimer = null; }, 60);
-            }
             if (!window.marked) {
               answerEl.textContent = markdownBuffer;
             } else if (!renderTimer) {
-              answerEl.innerHTML = linkCitations(marked.parse(markdownBuffer));
-              answerEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+              // Throttled progressive render: re-render accumulated buffer
+              // every 50ms while tokens keep arriving.
+              renderTimer = setTimeout(() => {
+                renderTimer = null;
+                answerEl.innerHTML = linkCitations(marked.parse(markdownBuffer));
+                answerEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+              }, 50);
             }
             break;
 
