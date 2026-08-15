@@ -8,6 +8,7 @@ from qdrant_client.models import (
     FieldCondition,
     Filter,
     MatchValue,
+    PayloadSchemaType,
     PointStruct,
     VectorParams,
 )
@@ -63,6 +64,22 @@ class QdrantVectorStore(BaseVectorStore):
                     distance=Distance.COSINE,
                 ),
             )
+            # Payload indexes so filters (dedup by hash, delete/list by
+            # document_id) don't fall back to full collection scans.
+            for field in ("document_id", "content_hash"):
+                try:
+                    await asyncio.to_thread(
+                        client.create_payload_index,
+                        collection_name=settings.qdrant_collection,
+                        field_name=field,
+                        field_schema=PayloadSchemaType.KEYWORD,
+                    )
+                except UnexpectedResponse:
+                    # Index already exists (e.g. collection pre-created manually).
+                    logger.debug(
+                        "Payload index already exists",
+                        extra={"field": field},
+                    )
             logger.info(
                 "Created Qdrant collection",
                 extra={"collection": settings.qdrant_collection},
