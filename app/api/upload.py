@@ -8,7 +8,6 @@ from app.core.config import settings
 from app.core.exceptions import EmptyUploadError
 from app.schemas.models import UploadResponse
 from app.services.ingest_service import IngestService
-from app.services.task_manager import task_manager
 
 CHUNK_SIZE = 8 * 1024 * 1024  # 8 MB chunks
 
@@ -64,21 +63,20 @@ async def upload_pdf_async(
                     break
                 f.write(chunk)
 
-        task_id = task_manager.create_task()
+        try:
+            task_id = await service.upload_pdf_background(
+                str(temp_path),
+                file.filename,
+            )
+        except Exception:
+            temp_path.unlink(missing_ok=True)
+            raise
+
         task_ids.append(
             {
                 "filename": file.filename,
                 "task_id": task_id,
             }
-        )
-
-        import asyncio
-        asyncio.create_task(
-            service._process_background(
-                task_id,
-                str(temp_path),
-                file.filename,
-            )
         )
 
     return {"tasks": task_ids}

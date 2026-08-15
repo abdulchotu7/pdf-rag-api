@@ -66,34 +66,42 @@ class IngestService:
 
     async def upload_pdf_background(
         self,
+        file_path: str,
         filename: str,
-        content: bytes,
     ) -> str:
         if not filename.lower().endswith(".pdf"):
             raise InvalidPDFError("Only PDF files are supported")
 
-        if not content:
-            raise EmptyUploadError("Uploaded file is empty")
+        path = Path(file_path)
+        if not path.exists():
+            raise InvalidPDFError(f"File not found: {file_path}")
 
-        if len(content) > settings.max_upload_size:
+        if path.stat().st_size > settings.max_upload_size:
             raise InvalidPDFError(
                 f"File exceeds maximum size of {settings.max_upload_size // (1024 * 1024)} MB"
             )
 
-        content_hash = hashlib.sha256(content).hexdigest()
+        content_hash = await asyncio.to_thread(self._hash_file, path)
         task_id = task_manager.create_task()
-        file_path = self._save_file(content, filename)
 
         asyncio.create_task(
             self._process_background(
                 task_id,
-                str(file_path),
+                str(path),
                 filename,
                 content_hash=content_hash,
             )
         )
 
         return task_id
+
+    @staticmethod
+    def _hash_file(path: Path) -> str:
+        hasher = hashlib.sha256()
+        with open(path, "rb") as f:
+            for block in iter(lambda: f.read(65536), b""):
+                hasher.update(block)
+        return hasher.hexdigest()
 
     async def _process_background(
         self,
