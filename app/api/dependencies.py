@@ -1,4 +1,3 @@
-import os
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -29,8 +28,10 @@ logger = get_logger("dependencies")
 
 class AppContainer:
     def __init__(self, device: str) -> None:
+        # Disable LlamaIndex's built-in LLM — all LLM calls go through our
+        # DeepSeekProvider; all embeddings through BGEEmbeddingProvider.
+        # No OPENAI_API_KEY is required or set.
         LlamaSettings.llm = None
-        os.environ["OPENAI_API_KEY"] = "sk-dummy-placeholder"
 
         self.device = device
         self.llm: BaseLLM = DeepSeekProvider()

@@ -1,5 +1,4 @@
 import asyncio
-from functools import partial
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.exceptions import UnexpectedResponse
@@ -33,11 +32,6 @@ class QdrantVectorStore(BaseVectorStore):
                 port=settings.qdrant_port,
             )
         return self._client
-
-    async def _run_sync(self, method, *args, **kwargs):
-        client = self._get_client()
-        fn = partial(method, *args, **kwargs)
-        return await asyncio.to_thread(fn)
 
     async def collection_exists(self) -> bool:
         try:

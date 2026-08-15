@@ -428,7 +428,6 @@ app/
 │   └── deepseek.py      # DeepSeekProvider (V4 Flash, thinking disabled)
 ├── rag/
 │   ├── hybrid_retriever.py  # Dense + BM25 + RRF fusion retriever
-│   ├── ingestion.py         # Legacy ingestion (kept for reference)
 │   ├── query_engine.py      # Sync + streaming query orchestration
 │   ├── retrieval.py         # Dense-only retriever (base path)
 │   └── streaming_ingestion.py  # Page-at-a-time ingestion with dedup
