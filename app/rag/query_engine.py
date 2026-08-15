@@ -8,7 +8,7 @@ from app.llm.base import BaseLLM
 from app.rag.hybrid_retriever import HybridRetriever
 from app.rag.retrieval import Retriever
 from app.reranker.base import BaseReranker
-from app.schemas.models import ChatResponse, SourceNode
+from app.schemas.models import ChatResponse, SearchResult, SourceNode
 
 logger = get_logger("query_engine")
 
@@ -44,15 +44,14 @@ class QueryEngine:
         self._reranker = reranker
         self._hybrid_retriever = hybrid_retriever
 
-    async def _retrieve_and_rerank(
+    async def _retrieve(
         self,
         question: str,
-    ) -> tuple[list[SourceNode], str, dict]:
+    ) -> tuple[list[SearchResult], dict]:
         t_start = time.perf_counter()
         embed_ms = 0.0
         dense_search_ms = 0.0
         retrieval_ms = 0.0
-        rerank_ms = 0.0
         retrieved_count = 0
 
         if self._hybrid_retriever:
@@ -61,6 +60,17 @@ class QueryEngine:
             embed_ms = self._hybrid_retriever.last_embed_ms
             dense_search_ms = self._hybrid_retriever.last_dense_search_ms
             retrieved_count = len(results)
+            bm25_ms = max(0.0, retrieval_ms - embed_ms - dense_search_ms)
+            log_extra = {
+                "embed_ms": round(embed_ms, 2),
+                "dense_search_ms": round(dense_search_ms, 2),
+                "retrieval_ms": round(retrieval_ms, 1),
+                "bm25_ms": round(bm25_ms, 2),
+                "rerank_ms": 0.0,
+                "retrieved_count": retrieved_count,
+                "final_count": 0,
+                "mode": "hybrid",
+            }
         else:
             top_k = (
                 settings.retrieval_top_k
@@ -72,20 +82,42 @@ class QueryEngine:
             embed_ms = self._retriever.last_embed_ms
             dense_search_ms = self._retriever.last_search_ms
             retrieved_count = len(results)
+            log_extra = {
+                "embed_ms": round(embed_ms, 2),
+                "dense_search_ms": round(dense_search_ms, 2),
+                "retrieval_ms": round(retrieval_ms, 1),
+                "bm25_ms": 0.0,
+                "rerank_ms": 0.0,
+                "retrieved_count": retrieved_count,
+                "final_count": 0,
+                "mode": "dense",
+            }
 
-        if not results:
-            return [], "", {}
+        return results, log_extra
 
-        if self._reranker:
+    async def _rerank(
+        self,
+        question: str,
+        results: list[SearchResult],
+        log_extra: dict,
+    ) -> list[SearchResult]:
+        if self._reranker and results:
+            t0 = time.perf_counter()
             results = await self._reranker.rerank(
                 query=question,
                 nodes=results,
                 top_n=settings.final_top_k,
             )
-            rerank_ms = (time.perf_counter() - t_start) * 1000 - retrieval_ms
+            log_extra["rerank_ms"] = round(
+                (time.perf_counter() - t0) * 1000, 1
+            )
+        log_extra["final_count"] = len(results)
+        return results
 
-        final_count = len(results)
-
+    @staticmethod
+    def _build_context(
+        results: list[SearchResult],
+    ) -> tuple[list[SourceNode], str]:
         context_parts = []
         seen = set()
         sources = []
@@ -106,22 +138,19 @@ class QueryEngine:
                 )
 
         context = "\n\n".join(context_parts)
+        return sources, context
 
-        log_extra = {
-            "embed_ms": round(embed_ms, 2),
-            "dense_search_ms": round(dense_search_ms, 2),
-            "retrieval_ms": round(retrieval_ms, 1),
-            "rerank_ms": round(rerank_ms, 1),
-            "retrieved_count": retrieved_count,
-            "final_count": final_count,
-        }
-        if self._hybrid_retriever:
-            bm25_ms = max(0.0, retrieval_ms - embed_ms - dense_search_ms)
-            log_extra["bm25_ms"] = round(bm25_ms, 2)
-            log_extra["mode"] = "hybrid"
-        else:
-            log_extra["bm25_ms"] = 0.0
-            log_extra["mode"] = "dense"
+    async def _retrieve_and_rerank(
+        self,
+        question: str,
+    ) -> tuple[list[SourceNode], str, dict]:
+        results, log_extra = await self._retrieve(question)
+
+        if not results:
+            return [], "", log_extra
+
+        results = await self._rerank(question, results, log_extra)
+        sources, context = self._build_context(results)
 
         return sources, context, log_extra
 
@@ -182,9 +211,9 @@ class QueryEngine:
         else:
             yield _status("Searching documents...")
 
-        sources, context, log_extra = await self._retrieve_and_rerank(question)
+        results, log_extra = await self._retrieve(question)
 
-        if not sources:
+        if not results:
             yield f"data: {json.dumps({'type': 'sources', 'sources': []})}\n\n"
             yield f"data: {json.dumps({'type': 'error', 'message': 'No relevant documents found.'})}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
@@ -192,6 +221,9 @@ class QueryEngine:
 
         if self._reranker:
             yield _status("Reranking results...")
+
+        results = await self._rerank(question, results, log_extra)
+        sources, context = self._build_context(results)
 
         yield _status("Generating answer...")
         yield f"data: {json.dumps({'type': 'sources', 'sources': [s.model_dump() for s in sources]})}\n\n"
