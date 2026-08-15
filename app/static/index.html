@@ -150,6 +150,62 @@
   }
   .metrics .chip .val { font-weight: 600; color: var(--text); }
 
+  /* Word-level streaming */
+  .answer-body { display: inline; }
+  .w { display: inline; animation: stream-in 420ms cubic-bezier(0.22, 0.61, 0.25, 1) both; will-change: filter, opacity; }
+  @keyframes stream-in { from { opacity: 0; filter: blur(6px); transform: translateY(2px); } to { opacity: 1; filter: blur(0); transform: translateY(0); } }
+  .cite-chip {
+    display: inline-flex; align-items: center; margin: 0 1px; padding: 0 5px;
+    border-radius: 4px; background: var(--accent-light); border: 1px solid #d0d9f0;
+    color: var(--accent); font-size: 11px; font-weight: 600; cursor: pointer;
+    vertical-align: super; line-height: 1.5;
+    animation: pop-in 250ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  }
+  .cite-chip:hover { background: #d4def5; }
+  @keyframes pop-in { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+  .stream-cursor { display: inline-block; width: 2px; height: 14px; margin-left: 2px; border-radius: 1px; background: var(--text-secondary); vertical-align: text-bottom; animation: blink .8s step-end infinite; }
+
+  /* Answer footer: actions, sources, follow-ups */
+  .answer-actions { display: flex; align-items: center; gap: 2px; padding: 10px 0 0; }
+  .action-btn {
+    display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+    border: none; background: transparent; color: var(--text-tertiary); border-radius: 6px;
+    cursor: pointer; transition: color var(--transition), background var(--transition);
+  }
+  .action-btn:hover { background: var(--bg); color: var(--text); }
+  .action-btn.on { color: var(--accent); }
+  .sources-wrap { padding: 8px 0 0; }
+  .src-toggle {
+    display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border);
+    background: var(--surface); border-radius: var(--radius); padding: 5px 10px 5px 6px;
+    font-size: 12px; color: var(--text-secondary); cursor: pointer; font-family: var(--font);
+    transition: background var(--transition);
+  }
+  .src-toggle:hover { background: var(--bg); }
+  .src-avatars { display: inline-flex; }
+  .src-avatar {
+    display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px;
+    border-radius: 50%; background: var(--accent); color: #fff; font-size: 9px; font-weight: 700;
+    box-shadow: 0 0 0 1.5px var(--surface);
+  }
+  .src-avatar + .src-avatar { margin-left: -5px; }
+  .sources-pop { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .3s cubic-bezier(0.23, 1, 0.32, 1), opacity .25s ease; }
+  .sources-pop.open { grid-template-rows: 1fr; opacity: 1; }
+  .sources-inner { overflow: hidden; display: flex; flex-direction: column; gap: 4px; padding-top: 8px; }
+  .sources-inner .src-card { width: 100%; cursor: pointer; }
+  .followups { padding: 12px 0 4px; }
+  .fu-label { font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+  .fu-btn {
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+    background: none; border: none; border-bottom: 1px solid #f0f1f3; padding: 7px 4px;
+    font-size: 13px; color: var(--text); font-family: var(--font); cursor: pointer;
+    border-radius: var(--radius-sm); transition: background var(--transition);
+    animation: fade-up 350ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  }
+  .fu-btn:hover { background: var(--bg); }
+  .fu-btn svg { color: var(--text-tertiary); flex-shrink: 0; }
+  @keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
   /* Input */
   .input-row { display: flex; gap: 8px; padding: 12px 0; flex-shrink: 0; }
   .input-row input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: var(--font); outline: none; background: var(--surface); color: var(--text); transition: border-color var(--transition), box-shadow var(--transition); }
@@ -255,21 +311,6 @@ function addStatus(text) {
   return el;
 }
 
-function renderSources(sources) {
-  const el = document.createElement('div');
-  el.className = 'src-cards';
-  el.innerHTML = sources.map((s, i) =>
-    `<div class="src-card" data-idx="${i+1}" title="Click to scroll to citation">
-      <span class="num">[${i+1}]</span>
-      <span class="fname">${esc(s.filename)}</span>
-      <span class="page">p.${s.page}</span>
-      <span class="score">${s.score.toFixed(2)}</span>
-    </div>`
-  ).join('');
-  chat.append(el);
-  el.scrollIntoView({ behavior: 'smooth', block: 'end' });
-}
-
 function addMetrics(data) {
   const el = document.createElement('div');
   el.className = 'metrics';
@@ -363,22 +404,156 @@ fileInput.addEventListener('change', async () => {
   send.disabled = false;
 });
 
-// Streaming chat with Markdown
+// Streaming chat with word-level reveal
 let answerEl = null;
+let answerBody = null;
 let statusEl = null;
 let markdownBuffer = '';
-let renderTimer = null;
+let pendingText = '';
 let sourcesList = [];
+let lastQuestion = '';
 
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const q = input.value.trim();
+const COPY_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const RETRY_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>';
+const UP_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12M15 5.88L14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88z"/></svg>';
+const DOWN_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2M9 18.12L10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88z"/></svg>';
+const ARROW_SVG = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10l-5 5 5 5"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg>';
+
+function appendWords(text) {
+  for (const word of text.split(/\s+/)) {
+    if (!word) continue;
+    const span = document.createElement('span');
+    span.className = 'w';
+    span.textContent = word + ' ';
+    answerBody.append(span);
+  }
+}
+
+function appendCitation(n) {
+  const chip = document.createElement('span');
+  chip.className = 'cite-chip';
+  chip.textContent = `[${n}]`;
+  const src = sourcesList[n - 1];
+  chip.title = src ? `${src.filename} p.${src.page}` : '';
+  chip.onclick = () => scrollToSource(n);
+  answerBody.append(chip);
+}
+
+function flushPending() {
+  if (!pendingText || !answerBody) return;
+  let processed = 0;
+  const re = /\[(\d+)\]/g;
+  let m;
+  while ((m = re.exec(pendingText)) !== null) {
+    appendWords(pendingText.slice(processed, m.index));
+    appendCitation(parseInt(m[1], 10));
+    processed = m.index + m[0].length;
+  }
+  const tail = pendingText.slice(processed);
+  if (/\[\d*$/.test(tail)) {
+    // Incomplete citation marker at the end — hold it for the next chunk.
+    pendingText = tail;
+    return;
+  }
+  appendWords(tail);
+  pendingText = '';
+}
+
+function ensureAnswerEl() {
+  if (answerEl) return;
+  answerEl = addMsg('assistant');
+  answerEl.classList.add('typing');
+  answerBody = document.createElement('div');
+  answerBody.className = 'answer-body';
+  answerEl.append(answerBody);
+  const cursor = document.createElement('span');
+  cursor.className = 'stream-cursor';
+  cursor.setAttribute('aria-hidden', 'true');
+  answerBody.append(cursor);
+}
+
+function buildAnswerFooter() {
+  if (sourcesList.length) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sources-wrap';
+    const panel = document.createElement('div');
+    panel.className = 'sources-pop';
+    panel.innerHTML = '<div class="sources-inner">' + sourcesList.map((s, i) =>
+      `<div class="src-card" onclick="scrollToSource(${i + 1})" title="Click to scroll to citation">
+        <span class="num">[${i + 1}]</span>
+        <span class="fname">${esc(s.filename)}</span>
+        <span class="page">p.${s.page}</span>
+        <span class="score">${s.score.toFixed(2)}</span>
+      </div>`
+    ).join('') + '</div>';
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'src-toggle';
+    toggle.innerHTML =
+      `<span class="src-avatars">${sourcesList.slice(0, 4).map(s => `<span class="src-avatar">${esc((s.filename[0] || '?').toUpperCase())}</span>`).join('')}</span>` +
+      `<span>${sourcesList.length} source${sourcesList.length > 1 ? 's' : ''}</span>`;
+    toggle.addEventListener('click', () => panel.classList.toggle('open'));
+    wrap.append(toggle, panel);
+    chat.append(wrap);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'answer-actions';
+  const makeAction = (label, svg) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'action-btn';
+    b.title = label;
+    b.setAttribute('aria-label', label);
+    b.innerHTML = svg;
+    actions.append(b);
+    return b;
+  };
+  const copyBtn = makeAction('Copy', COPY_SVG);
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(markdownBuffer);
+      copyBtn.innerHTML = '\u2713';
+      setTimeout(() => { copyBtn.innerHTML = COPY_SVG; }, 1200);
+    } catch {}
+  });
+  makeAction('Retry', RETRY_SVG).addEventListener('click', () => runAsk(lastQuestion));
+  const upBtn = makeAction('Good answer', UP_SVG);
+  upBtn.addEventListener('click', () => upBtn.classList.toggle('on'));
+  const downBtn = makeAction('Bad answer', DOWN_SVG);
+  downBtn.addEventListener('click', () => downBtn.classList.toggle('on'));
+  chat.append(actions);
+
+  const fu = document.createElement('div');
+  fu.className = 'followups';
+  const label = document.createElement('p');
+  label.className = 'fu-label';
+  label.textContent = 'Follow-ups';
+  fu.append(label);
+  ['Summarize the answer above', 'Explain this in simpler terms', 'What are the sources for this?'].forEach((text, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'fu-btn';
+    b.style.animationDelay = `${i * 90}ms`;
+    b.innerHTML = ARROW_SVG + `<span>${esc(text)}</span>`;
+    b.addEventListener('click', () => runAsk(text));
+    fu.append(b);
+  });
+  chat.append(fu);
+  fu.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+async function runAsk(question) {
+  const q = question.trim();
   if (!q) return;
 
   input.value = '';
+  lastQuestion = q;
   addMsg('user').textContent = q;
 
   answerEl = null;
+  answerBody = null;
+  pendingText = '';
   markdownBuffer = '';
   sourcesList = [];
   statusEl = addStatus('Starting\u2026');
@@ -416,27 +591,13 @@ form.addEventListener('submit', async (e) => {
           case 'sources':
             if (statusEl) { statusEl.classList.add('done'); statusEl.innerHTML = '\u2713 Found ' + data.sources.length + ' sources'; statusEl = null; }
             sourcesList = data.sources;
-            renderSources(data.sources);
             break;
 
           case 'token':
-            if (!answerEl) {
-              answerEl = addMsg('assistant');
-              answerEl.classList.add('typing');
-            }
+            ensureAnswerEl();
             markdownBuffer += data.token;
-
-            if (!window.marked) {
-              answerEl.textContent = markdownBuffer;
-            } else if (!renderTimer) {
-              // Throttled progressive render: re-render accumulated buffer
-              // every 50ms while tokens keep arriving.
-              renderTimer = setTimeout(() => {
-                renderTimer = null;
-                answerEl.innerHTML = linkCitations(marked.parse(markdownBuffer));
-                answerEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
-              }, 50);
-            }
+            pendingText += data.token;
+            flushPending();
             break;
 
           case 'metrics':
@@ -455,11 +616,17 @@ form.addEventListener('submit', async (e) => {
       }
     }
 
-    // Final render
-    if (window.marked && answerEl) {
-      answerEl.innerHTML = linkCitations(marked.parse(markdownBuffer));
+    // Stream finished: flush leftovers, render final markdown, show footer.
+    flushPending();
+    if (answerEl && answerBody) {
       answerEl.classList.remove('typing');
+      const cursor = answerBody.querySelector('.stream-cursor');
+      if (cursor) cursor.remove();
+      if (window.marked) {
+        answerBody.innerHTML = linkCitations(marked.parse(markdownBuffer));
+      }
     }
+    buildAnswerFooter();
 
   } catch (err) {
     addMsg('assistant').textContent = 'Connection error: ' + err.message;
@@ -467,6 +634,11 @@ form.addEventListener('submit', async (e) => {
 
   send.disabled = false;
   input.focus();
+}
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  runAsk(input.value);
 });
 
 // Link [N] citations to source cards
