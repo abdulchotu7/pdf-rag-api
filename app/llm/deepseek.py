@@ -21,6 +21,7 @@ class DeepSeekProvider(BaseLLM):
             self._client = AsyncOpenAI(
                 api_key=settings.deepseek_api_key,
                 base_url=settings.deepseek_base_url,
+                timeout=settings.app_timeout,
             )
         return self._client
 

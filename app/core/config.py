@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     embedding_device: str = "auto"
     embedding_dimension: int = 1024
 
-    chunk_size: int = 1024
-    chunk_overlap: int = 150
+    chunk_size: int = 512
+    chunk_overlap: int = 64
 
     top_k: int = 10
 
@@ -31,10 +31,10 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 20
     final_top_k: int = 5
 
-    hybrid_enabled: bool = False
-    vector_top_k: int = 20
-    bm25_top_k: int = 20
-    fusion_top_k: int = 30
+    hybrid_enabled: bool = True
+    vector_top_k: int = 10
+    bm25_top_k: int = 10
+    fusion_top_k: int = 15
 
     upload_dir: str = "uploads"
 
