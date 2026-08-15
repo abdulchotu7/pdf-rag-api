@@ -171,8 +171,13 @@ class QdrantVectorStore(BaseVectorStore):
             if result:
                 return result[0].payload.get("document_id")
             return None
-        except UnexpectedResponse:
-            return None
+        except UnexpectedResponse as exc:
+            # Qdrant being down is not "no duplicate" — fail fast so the
+            # caller gets a clear 503 instead of a confusing upsert failure.
+            logger.error("Qdrant dedup lookup failed", exc_info=exc)
+            raise VectorDBUnavailableError(
+                f"Cannot check for duplicates: {exc}"
+            ) from exc
 
     async def list_documents(self) -> list[dict]:
         try:
