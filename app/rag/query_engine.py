@@ -187,6 +187,7 @@ class QueryEngine:
         if not sources:
             yield f"data: {json.dumps({'type': 'sources', 'sources': []})}\n\n"
             yield f"data: {json.dumps({'type': 'error', 'message': 'No relevant documents found.'})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
             return
 
         if self._reranker:
