@@ -3,6 +3,8 @@ import hashlib
 import uuid
 from pathlib import Path
 
+import aiofiles
+
 from app.core.config import settings
 from app.core.exceptions import EmptyUploadError, InvalidPDFError
 from app.core.logging import get_logger
@@ -65,17 +67,38 @@ class IngestService:
                 f"File exceeds maximum size of {settings.max_upload_size // (1024 * 1024)} MB"
             )
 
-        content_hash = hashlib.sha256(content).hexdigest()
-        file_path = self._save_file(content, filename)
+        file_path = await self._save_file(content, filename)
+        return await self.upload_pdf_from_file(str(file_path), filename)
+
+    async def upload_pdf_from_file(
+        self,
+        file_path: str,
+        filename: str,
+    ) -> UploadResponse:
+        """Ingest a PDF already on disk; temp file is always cleaned up."""
+        path = Path(file_path)
+        if not path.exists():
+            raise InvalidPDFError(f"File not found: {file_path}")
+
+        if not filename.lower().endswith(".pdf"):
+            raise InvalidPDFError("Only PDF files are supported")
+
+        if path.stat().st_size > settings.max_upload_size:
+            raise InvalidPDFError(
+                f"File exceeds maximum size of {settings.max_upload_size // (1024 * 1024)} MB"
+            )
+
+        content_hash = await asyncio.to_thread(self._hash_file, path)
+
         try:
             result = await self._pipeline.ingest_pdf(
-                file_path=str(file_path),
+                file_path=file_path,
                 filename=filename,
                 content_hash=content_hash,
             )
         finally:
             # Always clean up the temp file — success, duplicate, or failure.
-            file_path.unlink(missing_ok=True)
+            path.unlink(missing_ok=True)
 
         if not result.get("duplicate"):
             self._invalidate_bm25()
@@ -159,11 +182,12 @@ class IngestService:
         finally:
             Path(file_path).unlink(missing_ok=True)
 
-    def _save_file(self, content: bytes, filename: str) -> Path:
+    async def _save_file(self, content: bytes, filename: str) -> Path:
         upload_dir = Path(settings.upload_dir)
         upload_dir.mkdir(parents=True, exist_ok=True)
 
-        unique_name = f"{uuid.uuid4()}_{filename}"
+        unique_name = f"{uuid.uuid4()}_{Path(filename).name}"
         file_path = upload_dir / unique_name
-        file_path.write_bytes(content)
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(content)
         return file_path

@@ -1,6 +1,7 @@
 import uuid
 from pathlib import Path
 
+import aiofiles
 from fastapi import APIRouter, Depends, UploadFile
 
 from app.api.dependencies import get_ingest_service
@@ -14,6 +15,19 @@ CHUNK_SIZE = 8 * 1024 * 1024  # 8 MB chunks
 router = APIRouter(tags=["upload"])
 
 
+async def _stream_to_disk(file: UploadFile, upload_dir: Path) -> Path:
+    """Stream an upload to disk without loading it into memory."""
+    safe_name = Path(file.filename or "upload").name
+    temp_path = upload_dir / f"upload_{uuid.uuid4()}_{safe_name}"
+    async with aiofiles.open(temp_path, "wb") as f:
+        while True:
+            chunk = await file.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            await f.write(chunk)
+    return temp_path
+
+
 @router.post("/upload", response_model=list[UploadResponse])
 async def upload_pdf(
     files: list[UploadFile],
@@ -22,16 +36,23 @@ async def upload_pdf(
     if not files:
         raise EmptyUploadError("No files provided")
 
+    upload_dir = Path(settings.upload_dir)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
     results = []
     for file in files:
         if not file.filename:
             raise EmptyUploadError("No filename provided")
 
-        content = await file.read()
-        result = await service.upload_pdf(
-            filename=file.filename,
-            content=content,
-        )
+        temp_path = await _stream_to_disk(file, upload_dir)
+        try:
+            result = await service.upload_pdf_from_file(
+                str(temp_path),
+                file.filename,
+            )
+        except Exception:
+            temp_path.unlink(missing_ok=True)
+            raise
         results.append(result)
 
     return results
@@ -53,15 +74,7 @@ async def upload_pdf_async(
         if not file.filename:
             raise EmptyUploadError("No filename provided")
 
-        temp_name = f"upload_{uuid.uuid4()}_{file.filename}"
-        temp_path = upload_dir / temp_name
-
-        with open(temp_path, "wb") as f:
-            while True:
-                chunk = await file.read(CHUNK_SIZE)
-                if not chunk:
-                    break
-                f.write(chunk)
+        temp_path = await _stream_to_disk(file, upload_dir)
 
         try:
             task_id = await service.upload_pdf_background(
