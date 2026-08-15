@@ -16,6 +16,15 @@ async def chat(
     return await service.answer(request)
 
 
+@router.post("/chat/async", response_model=dict)
+async def chat_async(
+    request: ChatRequest,
+    service: ChatService = Depends(get_chat_service),
+) -> dict:
+    task_id = await service.answer_async(request)
+    return {"task_id": task_id}
+
+
 @router.post("/chat/stream")
 async def chat_stream(
     request: ChatRequest,
