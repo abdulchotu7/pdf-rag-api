@@ -59,13 +59,14 @@ class IngestService:
 
         content_hash = hashlib.sha256(content).hexdigest()
         file_path = self._save_file(content, filename)
-        result = await self._pipeline.ingest_pdf(
-            file_path=str(file_path),
-            filename=filename,
-            content_hash=content_hash,
-        )
-
-        if result.get("duplicate"):
+        try:
+            result = await self._pipeline.ingest_pdf(
+                file_path=str(file_path),
+                filename=filename,
+                content_hash=content_hash,
+            )
+        finally:
+            # Always clean up the temp file — success, duplicate, or failure.
             file_path.unlink(missing_ok=True)
 
         return UploadResponse(
