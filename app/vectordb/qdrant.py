@@ -206,24 +206,18 @@ class QdrantVectorStore(BaseVectorStore):
                     )
                 ]
             )
-            scroll_result, _ = await asyncio.to_thread(
-                client.scroll,
+            # Delete by filter — Qdrant matches all points in one operation.
+            # (A scroll-based approach would truncate at the scroll limit.)
+            deleted = await asyncio.to_thread(
+                client.delete,
                 collection_name=settings.qdrant_collection,
-                scroll_filter=qdrant_filter,
-                limit=10000,
+                points_selector=qdrant_filter,
             )
-            point_ids = [p.id for p in scroll_result]
-            if point_ids:
-                await asyncio.to_thread(
-                    client.delete,
-                    collection_name=settings.qdrant_collection,
-                    points_selector=point_ids,
-                )
             logger.info(
                 "Deleted document from Qdrant",
                 extra={
                     "document_id": document_id,
-                    "points_removed": len(point_ids),
+                    "delete_status": getattr(deleted, "status", None),
                 },
             )
         except UnexpectedResponse as exc:
