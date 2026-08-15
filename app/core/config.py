@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     rerank_enabled: bool = True
     rerank_model: str = "BAAI/bge-reranker-v2-m3"
+    rerank_max_length: int = 1024
     retrieval_top_k: int = 20
     final_top_k: int = 5
 

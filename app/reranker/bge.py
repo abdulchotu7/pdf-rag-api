@@ -5,6 +5,7 @@ from functools import lru_cache
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+from app.core.config import settings
 from app.core.exceptions import EmbeddingModelError
 from app.core.logging import get_logger
 from app.reranker.base import BaseReranker
@@ -53,7 +54,7 @@ class BGEReranker(BaseReranker):
             padding=True,
             truncation=True,
             return_tensors="pt",
-            max_length=512,
+            max_length=settings.rerank_max_length,
         ).to(self._device)
         with torch.inference_mode():
             model(**inputs)
@@ -80,7 +81,7 @@ class BGEReranker(BaseReranker):
                 padding=True,
                 truncation=True,
                 return_tensors="pt",
-                max_length=512,
+                max_length=settings.rerank_max_length,
             ).to(self._device)
 
             with self._lock:
