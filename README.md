@@ -53,7 +53,7 @@ Question
 
 ## Tech Stack
 
-- **Python 3.12+** / **FastAPI**
+- **Python 3.11+** / **FastAPI** (tested on 3.11 and 3.14)
 - **LlamaIndex** — PDF parsing, chunking, fusion retriever
 - **DeepSeek V4 Flash** — LLM via OpenAI-compatible API (thinking disabled)
 - **BAAI/bge-m3** — Local embeddings via HuggingFace (float16 on MPS/CUDA)
@@ -65,7 +65,7 @@ Question
 
 ## Prerequisites
 
-- Python 3.12+ (local dev) or Docker (containerized)
+- Python 3.11+ (local dev) or Docker (containerized)
 - DeepSeek API key
 - Apple Silicon (M1–M5) recommended for best local performance
 
@@ -148,6 +148,19 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 Open `http://localhost:8000` for the web UI.
+
+**First run**: BGE-M3 (~2.3 GB) and the reranker (~1.1 GB) download from HuggingFace on startup, then stay cached — expect a ~15–30 s cold start, not an error.
+
+**Stop the app**: `Ctrl+C` in the terminal that started it. If the terminal was closed first, the server keeps running in the background (orphaned) — find and kill it:
+
+```bash
+lsof -i :8000            # find the PID holding the port
+kill <PID>               # Ctrl+C equivalent; kill -9 if it won't die
+```
+
+**`address already in use` on startup** means a stale server still holds port 8000 (usually from a closed terminal). Run the two commands above before starting again.
+
+**Don't move or delete the venv while the server is running.** A server keeps running from a venv that was later trashed or renamed — it serves stale code, keeps the port, and breaks once Trash is emptied. Restart with the current `.venv` after recreating it.
 
 ## Running with Docker
 
