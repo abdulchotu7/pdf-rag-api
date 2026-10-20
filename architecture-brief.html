@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF RAG — interview atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --desk: #e8f0ec;
+    --paper: #f6faf7;
+    --ink: #14221f;
+    --mute: #4e615b;
+    --line: #c5d4cd;
+    --filament: #176a86;
+    --filament-soft: #d3eaf1;
+    --spark: #c24d22;
+    --spark-soft: #f6ddd3;
+    --ok: #2f6b4a;
+    --warn: #8a5a12;
+    --sidebar: 16.5rem;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-block-start: 0.75rem; }
+  .skip {
+    position: absolute; inset-inline-start: 0.75rem; inset-block-start: 0.5rem;
+    padding: 0.35rem 0.6rem; background: var(--ink); color: var(--paper);
+    transform: translateY(-200%);
+  }
+  .skip:focus { transform: none; z-index: 20; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  body {
+    margin: 0;
+    background: var(--desk);
+    color: var(--ink);
+    font-family: "Atkinson Hyperlegible", system-ui, sans-serif;
+    font-size: 1.05rem;
+    line-height: 1.55;
+  }
+  a { color: var(--filament); }
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid var(--spark);
+    outline-offset: 2px;
+  }
+  code, .mono, kbd {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.86em;
+  }
+  kbd {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 0.05em 0.35em;
+    border-radius: 0.2em;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: var(--sidebar) minmax(0, 1fr);
+    min-block-size: 100dvb;
+  }
+  nav.toc {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    block-size: 100dvb;
+    padding: 1.25rem 1rem 2rem 1.15rem;
+    border-inline-end: 1px solid var(--line);
+    background: color-mix(in srgb, var(--desk) 88%, white);
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scroll-target-group: auto;
+  }
+  .brand {
+    font-family: Syne, sans-serif;
+    font-weight: 800;
+    font-size: 1.05rem;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin: 0 0 0.25rem;
+  }
+  .brand-sub { color: var(--mute); font-size: 0.78rem; margin: 0 0 1.1rem; }
+  nav.toc a {
+    display: block;
+    text-decoration: none;
+    color: var(--mute);
+    padding: 0.28rem 0.45rem;
+    border-inline-start: 2px solid transparent;
+    font-size: 0.86rem;
+  }
+  nav.toc a:is(:target-current, .\:target-current) {
+    color: var(--ink);
+    font-weight: 700;
+    border-inline-start-color: var(--spark);
+    background: var(--paper);
+  }
+  main {
+    max-inline-size: 52rem;
+    padding: 2.2rem 1.6rem 5rem;
+    background:
+      radial-gradient(1200px 280px at 10% -10%, var(--filament-soft), transparent 55%),
+      var(--paper);
+  }
+  h1, h2, h3 {
+    font-family: Syne, sans-serif;
+    letter-spacing: -0.04em;
+    line-height: 1.12;
+  }
+  h1 { font-size: clamp(2.1rem, 4.2vw, 3.1rem); margin: 0 0 0.6rem; }
+  h2 {
+    font-size: 1.55rem;
+    margin: 2.6rem 0 0.7rem;
+    padding-block-start: 0.4rem;
+    border-block-start: 1px solid var(--line);
+  }
+  h3 { font-size: 1.12rem; margin: 1.5rem 0 0.45rem; }
+  p { margin: 0 0 0.85rem; }
+  .lede { font-size: 1.18rem; max-inline-size: 42rem; }
+  .kicker {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--filament);
+    margin: 0 0 0.45rem;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 1.1rem 0 1.4rem;
+  }
+  .chip {
+    background: var(--desk);
+    border: 1px solid var(--line);
+    padding: 0.28rem 0.55rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.75rem;
+  }
+  .chip b { color: var(--filament); font-weight: 600; }
+
+  .callout {
+    border: 1px solid var(--line);
+    background: var(--desk);
+    padding: 0.85rem 1rem;
+    margin: 1rem 0 1.2rem;
+  }
+  .callout.spark { border-color: color-mix(in srgb, var(--spark) 45%, var(--line)); background: var(--spark-soft); }
+  .callout .label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--spark);
+    margin-bottom: 0.25rem;
+  }
+
+  .stages {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0.8rem 0 1.1rem;
+  }
+  .stage {
+    display: grid;
+    grid-template-columns: 6.5rem 1fr;
+    gap: 0.7rem;
+    align-items: start;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 0.65rem 0.75rem;
+  }
+  .stage .tag {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    color: var(--filament);
+    font-weight: 600;
+  }
+  .stage.hot { border-color: var(--spark); background: color-mix(in srgb, var(--spark-soft) 55%, var(--paper)); }
+  .stage.hot .tag { color: var(--spark); }
+
+  .mode-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.6rem 0 0.9rem;
+  }
+  .mode-bar button {
+    font: inherit;
+    cursor: pointer;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    padding: 0.4rem 0.7rem;
+  }
+  .mode-bar button[aria-pressed="true"] {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  .krow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: 0.4rem 0 1rem;
+  }
+  .k {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+    background: var(--filament-soft);
+    padding: 0.25rem 0.5rem;
+  }
+  .k.off { opacity: 0.35; background: var(--desk); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+    margin: 0.4rem 0 1.1rem;
+  }
+  th, td {
+    text-align: start;
+    vertical-align: top;
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+  th { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mute); font-weight: 700; }
+  .tree {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    background: var(--desk);
+    padding: 0.9rem 1rem;
+    overflow: auto;
+    white-space: pre;
+    margin: 0.5rem 0 1rem;
+  }
+  details { margin: 0.45rem 0; border: 1px solid var(--line); background: var(--paper); }
+  details > summary {
+    cursor: pointer;
+    padding: 0.65rem 0.8rem;
+    font-weight: 700;
+  }
+  details .body { padding: 0 0.8rem 0.85rem; }
+  .say {
+    border-inline-start: 3px solid var(--filament);
+    padding-inline-start: 0.7rem;
+    margin: 0.4rem 0;
+  }
+  .gap { color: var(--warn); }
+  .ok { color: var(--ok); }
+  input[type="search"] {
+    width: 100%;
+    font: inherit;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    margin: 0.4rem 0 0.8rem;
+  }
+  .hidden { display: none !important; }
+  footer { color: var(--mute); font-size: 0.85rem; margin-top: 3rem; }
+
+  .formula {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.95rem;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0.85rem 1rem;
+    margin: 0.6rem 0 1rem;
+    overflow: auto;
+  }
+  .formula b { color: #f0c7b8; }
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 1fr; }
+    nav.toc {
+      position: relative;
+      block-size: auto;
+      max-block-size: 12rem;
+    }
+    .stage { grid-template-columns: 1fr; }
+  }
+  @media print {
+    nav.toc, .skip, .mode-bar { display: none !important; }
+    .shell { grid-template-columns: 1fr; }
+    main { max-inline-size: none; padding: 0; background: white; }
+    details .body { display: block !important; }
+    a { color: inherit; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#answers">Skip to interview answers</a>
+<div class="shell">
+<nav class="toc" aria-label="Sections">
+  <p class="brand">PDF RAG atlas</p>
+  <p class="brand-sub">Interview brief · file-accurate</p>
+  <a href="#thesis">Thesis</a>
+  <a href="#runtime">What we run</a>
+  <a href="#numbers">Numbers</a>
+  <a href="#layers">Layers</a>
+  <a href="#startup">Startup / DI</a>
+  <a href="#ingest">Ingest</a>
+  <a href="#query">Query pipeline</a>
+  <a href="#hybrid">Hybrid + RRF</a>
+  <a href="#models">Models</a>
+  <a href="#qdrant">Qdrant payload</a>
+  <a href="#api">API + SSE</a>
+  <a href="#concurrency">Concurrency</a>
+  <a href="#files">File atlas</a>
+  <a href="#gaps">Honest gaps</a>
+  <a href="#answers">Interview answers</a>
+  <a href="#if-asked">If they ask</a>
+</nav>
+
+<main>
+  <p class="kicker">FastAPI · LlamaIndex · Qdrant · BGE-M3 · DeepSeek</p>
+  <h1>Routes never talk to LlamaIndex or Qdrant.</h1>
+  <p class="lede">This is a production-shaped PDF Q&amp;A API. The interesting part is not “we used RAG.” It is a clean layered FastAPI app with three retrieval modes, SHA-256 dedup, page-at-a-time ingestion, and a two-stage retrieve-then-rerank path that cites pages.</p>
+
+  <div class="callout spark">
+    <div class="label">30-second opener</div>
+    <p style="margin:0">“I built a FastAPI PDF RAG service. Upload streams PDFs to disk, chunks with LlamaIndex, embeds locally with BGE-M3 into Qdrant. Questions go through hybrid search — dense vectors plus BM25, fused with RRF — then a BGE cross-encoder reranker, then DeepSeek. Sync and SSE chat, async ingest with task polling. Abstractions sit under every vendor so routes only call services.”</p>
+  </div>
+
+  <section id="thesis">
+    <h2>What it is</h2>
+    <p>A single FastAPI process that answers questions over uploaded PDFs using retrieval-augmented generation. Default path is <b>hybrid + rerank</b>. Local embeddings and reranker (Apple Silicon MPS / CUDA / CPU). Remote LLM via OpenAI-compatible DeepSeek API with thinking disabled.</p>
+    <p>What it is <em>not</em>: multi-tenant SaaS, a chatbot with history, an agent graph, or OCR. Those are on the README roadmap, not in the code.</p>
+  </section>
+
+  <section id="runtime">
+    <h2>What we actually run</h2>
+    <p><b>Two processes we start. One API we call.</b> <code>docker compose up</code> is exactly that: <code>app</code> (port 8000) and <code>qdrant</code> (6333 HTTP / 6334 gRPC). There is no Redis, no Celery, no extra embed server, no second worker.</p>
+    <svg viewBox="0 0 720 280" width="100%" height="auto" role="img" aria-label="Runtime: FastAPI app, Qdrant, DeepSeek cloud">
+      <rect x="8" y="8" width="454" height="264" fill="#e8f0ec" stroke="#c5d4cd"/>
+      <text x="24" y="36" font-family="IBM Plex Mono, monospace" font-size="12" fill="#176a86">YOU RUN (docker compose)</text>
+      <rect x="24" y="52" width="200" height="200" fill="#f6faf7" stroke="#14221f" stroke-width="1.5"/>
+      <text x="36" y="78" font-family="Syne, sans-serif" font-size="16" font-weight="700" fill="#14221f">app :8000</text>
+      <text x="36" y="102" font-family="Atkinson Hyperlegible, sans-serif" font-size="13" fill="#4e615b">FastAPI + static UI</text>
+      <text x="36" y="122" font-family="IBM Plex Mono, monospace" font-size="11" fill="#14221f">BGE-M3 embed (local)</text>
+      <text x="36" y="140" font-family="IBM Plex Mono, monospace" font-size="11" fill="#14221f">BGE reranker (local)</text>
+      <text x="36" y="158" font-family="IBM Plex Mono, monospace" font-size="11" fill="#14221f">BM25 in RAM</text>
+      <text x="36" y="176" font-family="IBM Plex Mono, monospace" font-size="11" fill="#14221f">TaskManager in RAM</text>
+      <text x="36" y="202" font-family="Atkinson Hyperlegible, sans-serif" font-size="12" fill="#c24d22">one process · one memory</text>
+      <rect x="248" y="52" width="190" height="200" fill="#f6faf7" stroke="#176a86" stroke-width="1.5"/>
+      <text x="264" y="78" font-family="Syne, sans-serif" font-size="16" font-weight="700" fill="#14221f">qdrant :6333</text>
+      <text x="264" y="102" font-family="Atkinson Hyperlegible, sans-serif" font-size="13" fill="#4e615b">open-source vector DB</text>
+      <text x="264" y="128" font-family="IBM Plex Mono, monospace" font-size="11" fill="#14221f">HNSW + payloads</text>
+      <text x="264" y="146" font-family="IBM Plex Mono, monospace" font-size="11" fill="#14221f">volume: qdrant_data</text>
+      <text x="264" y="176" font-family="Atkinson Hyperlegible, sans-serif" font-size="12" fill="#4e615b">dense search lives here</text>
+      <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="#176a86"/></marker></defs>
+      <line x1="224" y1="152" x2="248" y2="152" stroke="#176a86" stroke-width="2" marker-end="url(#arr)"/>
+      <rect x="486" y="52" width="218" height="200" fill="#f6ddd3" stroke="#c24d22" stroke-width="1.5"/>
+      <text x="502" y="36" font-family="IBM Plex Mono, monospace" font-size="12" fill="#c24d22">NOT OURS</text>
+      <text x="502" y="78" font-family="Syne, sans-serif" font-size="16" font-weight="700" fill="#14221f">DeepSeek API</text>
+      <text x="502" y="102" font-family="Atkinson Hyperlegible, sans-serif" font-size="13" fill="#4e615b">api.deepseek.com</text>
+      <text x="502" y="128" font-family="IBM Plex Mono, monospace" font-size="11" fill="#14221f">V4 Flash · thinking off</text>
+      <text x="502" y="176" font-family="Atkinson Hyperlegible, sans-serif" font-size="12" fill="#4e615b">generation only</text>
+      <line x1="454" y1="120" x2="486" y2="120" stroke="#c24d22" stroke-width="2"/>
+    </svg>
+    <p>Your browser talks only to <code>:8000</code>. That process embeds, reranks, and keeps BM25. It talks to Qdrant for vectors and to DeepSeek for the answer text. HuggingFace models are files on disk inside the app, not a third server.</p>
+  </section>
+
+  <section id="numbers">
+    <h2>Numbers to have cold</h2>
+    <div class="chips">
+      <span class="chip">embed dim <b>1024</b></span>
+      <span class="chip">chunk <b>512 / 64</b></span>
+      <span class="chip">dense top_k <b>10</b></span>
+      <span class="chip">retrieve-then-rerank <b>20 → 5</b></span>
+      <span class="chip">hybrid <b>10 + 10 → 15 → 5</b></span>
+      <span class="chip">embed batch <b>16</b></span>
+      <span class="chip">upload stream <b>8 MB</b></span>
+      <span class="chip">max file <b>1 GB</b></span>
+      <span class="chip">cosine + L2-normalized</span>
+      <span class="chip">temp <b>0.0</b></span>
+      <span class="chip">task TTL <b>24h</b></span>
+      <span class="chip">models ~<b>3.4 GB</b> first download</span>
+    </div>
+    <p>Default flags: <code>HYBRID_ENABLED=true</code>, <code>RERANK_ENABLED=true</code>. Collection name <code>documents</code>. Distance: cosine.</p>
+    <div class="callout spark">
+      <div class="label">Default query — say this in order</div>
+      <p style="margin:0"><b>10 dense + 10 BM25 → RRF (k=60) → 15 → rerank → 5 → DeepSeek.</b> Two algorithms after the retrievers, not one.</p>
+    </div>
+  </section>
+
+  <section id="layers">
+    <h2>Layered architecture</h2>
+    <p>Dependency inversion: every vendor is behind an ABC. FastAPI routes depend on services; services depend on pipeline objects; those depend on <code>BaseLLM</code>, <code>BaseEmbedding</code>, <code>BaseVectorStore</code>, <code>BaseReranker</code>.</p>
+    <div class="stages">
+      <div class="stage"><span class="tag">UI / HTTP</span><span><code>app/static/index.html</code> + routers in <code>app/api/</code>. No LlamaIndex imports here.</span></div>
+      <div class="stage"><span class="tag">Services</span><span><code>ChatService</code>, <code>IngestService</code>, in-memory <code>TaskManager</code>. Orchestration, validation, background tasks, BM25 invalidation.</span></div>
+      <div class="stage"><span class="tag">RAG</span><span><code>StreamingIngestionPipeline</code>, <code>Retriever</code>, <code>HybridRetriever</code>, <code>QueryEngine</code>. The actual retrieve → rerank → generate loop.</span></div>
+      <div class="stage"><span class="tag">Adapters</span><span>DeepSeek, BGE-M3, BGE reranker, Qdrant. Swap a provider without touching routes.</span></div>
+      <div class="stage"><span class="tag">Core</span><span>Pydantic settings, typed <code>RAGException</code>s, logging. Config from <code>.env</code>.</span></div>
+    </div>
+    <div class="callout">
+      <div class="label">SOLID talking point</div>
+      <p style="margin:0"><b>S</b> routers are thin. <b>O</b> new embedder = new class under <code>BaseEmbedding</code>. <b>L</b> fakes in tests implement the same ABCs. <b>I</b> small interfaces (embed / search / rerank / chat). <b>D</b> <code>AppContainer</code> wires concretes once at startup; QueryEngine never imports Qdrant.</p>
+    </div>
+  </section>
+
+  <section id="startup">
+    <h2>Startup and DI</h2>
+    <p><code>app/main.py</code> builds FastAPI with <code>lifespan=lifespan</code>, mounts routers, serves <code>/</code> from static, maps <code>RAGException</code> → JSON <code>{detail, code}</code> and a catch-all 500 that does <em>not</em> leak internals.</p>
+    <p class="mono" style="white-space:pre; background:var(--desk); padding:0.8rem; font-size:0.8rem; overflow:auto">lifespan
+  resolve_device(auto → mps → cuda → cpu)
+  AppContainer(device)
+    LlamaSettings.llm = None          # no OpenAI default
+    DeepSeekProvider
+    BGEEmbeddingProvider.warmup()
+    QdrantVectorStore
+    StreamingIngestionPipeline
+    Retriever
+    RerankerFactory.create()          # None if disabled
+    HybridRetriever                   # None if disabled
+    QueryEngine
+    IngestService / ChatService
+  app.state.container = container
+  yield
+  log shutdown</p>
+    <p>Routes pull services with FastAPI <code>Depends(get_chat_service)</code> / <code>get_ingest_service</code> — they read <code>request.app.state.container</code>. Models are warmed so the first user query is not a cold start.</p>
+  </section>
+
+  <section id="ingest">
+    <h2>Ingest path</h2>
+    <p>Two HTTP doors, one pipeline.</p>
+    <table>
+      <thead><tr><th>Door</th><th>What happens</th><th>When to mention</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>POST /upload</code></td>
+          <td>Stream file to disk → hash → ingest → wait → JSON list of <code>UploadResponse</code></td>
+          <td>Small files, simple demo</td>
+        </tr>
+        <tr>
+          <td><code>POST /upload/async</code></td>
+          <td>Same stream-to-disk, returns <code>task_id</code> immediately, poll <code>GET /tasks/{id}</code></td>
+          <td>1 GB PDFs, progress bar</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3>Call tree</h3>
+    <p class="mono" style="white-space:pre; background:var(--desk); padding:0.8rem; font-size:0.78rem; overflow:auto">upload.py _stream_to_disk          # 8 MB aiofiles chunks
+  IngestService.upload_pdf_from_file
+    Path.name PDF check, max size
+    SHA-256 in to_thread (64 KB blocks)
+    StreamingIngestionPipeline.ingest_pdf
+      find_by_hash → duplicate? return existing id, chunks=0
+      PdfReader, page by page
+        skip empty text
+        SentenceSplitter(512, 64)
+        batch 16 → embed_texts → upsert_chunks
+      task_manager progress if task_id
+    always unlink temp file (finally)
+    invalidate_bm25 unless duplicate</p>
+    <p>Dedup is <b>content hash, not filename</b>. Hash lives on every chunk payload. Payload indexes on <code>document_id</code> and <code>content_hash</code> so filters are not full scans.</p>
+    <p>Delete is Qdrant <code>delete(points_selector=Filter)</code> — not scroll-then-delete, which would truncate at the scroll limit. Delete also invalidates BM25.</p>
+    <div class="callout">
+      <div class="label">Qdrant HNSW — we do not rebuild per delete</div>
+      <p style="margin:0">Our app never rebuilds the vector index. Qdrant <b>soft-deletes</b>: a bitmask marks the point gone, so search cannot return it immediately. The HNSW graph may still hold the vector on disk until the <b>Vacuum Optimizer</b> rebuilds that <em>segment</em> in one go — default when ≥20% of the segment is deleted (<code>deleted_threshold: 0.2</code>) and the segment has ≥1000 vectors (<code>vacuum_min_vector_number</code>). Tiny collections may never vacuum; search is still correct.</p>
+    </div>
+  </section>
+
+  <section id="query">
+    <h2>Query pipeline — three modes</h2>
+    <p>Toggle the mode you will walk them through. Defaults in this repo: hybrid + rerank.</p>
+    <div class="mode-bar" role="group" aria-label="Retrieval mode">
+      <button type="button" data-mode="dense" aria-pressed="false">Dense only</button>
+      <button type="button" data-mode="rerank" aria-pressed="false">Dense + rerank</button>
+      <button type="button" data-mode="hybrid" aria-pressed="true">Hybrid + rerank</button>
+    </div>
+    <div class="krow" id="k-values">
+      <span class="k" data-show="dense">top_k 10</span>
+      <span class="k" data-show="rerank">retrieval_top_k 20</span>
+      <span class="k" data-show="hybrid">vector_top_k 10</span>
+      <span class="k" data-show="hybrid">bm25_top_k 10</span>
+      <span class="k" data-show="hybrid">fusion_top_k 15</span>
+      <span class="k" data-show="rerank hybrid">final_top_k 5</span>
+    </div>
+    <div class="stages" id="pipeline-stages">
+      <div class="stage" data-step="q"><span class="tag">1. Question</span><span><code>ChatRequest.question</code> (min length 1) → <code>ChatService</code> → <code>QueryEngine</code></span></div>
+      <div class="stage" data-step="embed"><span class="tag">2. Embed</span><span>BGE-M3, L2-normalized, dim 1024, under <code>asyncio.Lock</code> (SentenceTransformer is not concurrent-safe)</span></div>
+      <div class="stage" data-step="dense"><span class="tag">3. Dense</span><span>Qdrant <code>query_points</code>, cosine. Missing collection → empty list, not 500.</span></div>
+      <div class="stage" data-step="bm25"><span class="tag">4. BM25</span><span>In-memory BM25S over a full collection scroll. Lazy-built, double-checked lock.</span></div>
+      <div class="stage" data-step="rrf"><span class="tag">5. RRF</span><span>LlamaIndex <code>QueryFusionRetriever</code> mode <code>reciprocal_rerank</code>, <code>num_queries=1</code> (no LLM query rewrite)</span></div>
+      <div class="stage hot" data-step="rerank"><span class="tag">6. Rerank</span><span>Cross-encoder scores <code>(query, chunk)</code> pairs. This is usually the slow local step. Returned <code>score</code> is the logit, not cosine.</span></div>
+      <div class="stage" data-step="ctx"><span class="tag">7. Context</span><span>Dedup sources by <code>(filename, page)</code>. Shared citation numbers. Prompt: “use only the context.”</span></div>
+      <div class="stage" data-step="llm"><span class="tag">8. LLM</span><span>DeepSeek V4 Flash, temp 0, thinking disabled, sync or token stream.</span></div>
+    </div>
+    <p id="mode-blurb"></p>
+    <h3>Citations</h3>
+    <p>Two chunks from the same page share <code>[1]</code>. The sources panel lists unique (file, page) pairs. Test: <code>test_build_context_citations_match_deduped_sources</code>.</p>
+    <p>Empty retrieval short-circuits: <em>“No relevant documents found…”</em> — never calls the LLM.</p>
+  </section>
+
+  <section id="hybrid">
+    <h2>Why hybrid + RRF</h2>
+    <p><b>Dense</b> (BGE-M3) catches paraphrases: “auth code grant” ≈ “authorization code flow.” <b>BM25</b> catches exact tokens the embedder can smear: error codes, RFC numbers, function names, “OAuth 2.0.”</p>
+    <p><b>Reciprocal Rank Fusion</b> does not mix raw scores (cosine vs BM25 are incomparable). LlamaIndex <code>QueryFusionRetriever</code> mode <code>reciprocal_rerank</code> — we do not set <code>k</code>; the library hardcodes <b>k = 60</b> (Cormack et al.). Then <code>similarity_top_k=15</code>.</p>
+    <p class="formula">score(chunk) = Σ  1 / (60 + rank<sub>list</sub>)
+<br>e.g. dense #1 and BM25 #3 → <b>1/61 + 1/63 ≈ 0.0323</b>
+<br>only in one list → one term; still eligible. Sort, keep 15.</p>
+    <div class="callout">
+      <div class="label">Why num_queries=1</div>
+      <p style="margin:0">Fusion can generate extra queries with an LLM. We set <code>LlamaSettings.llm = None</code> at startup (tests too) so LlamaIndex cannot fall through to OpenAI. <code>num_queries=1</code> means “fuse these retrievers, do not rewrite the question.” Mention this — it shows you read the wiring, not just the README.</p>
+    </div>
+    <p>BM25 is <em>not</em> Qdrant sparse vectors. It is an in-process index rebuilt after ingest/delete via <code>invalidate_bm25()</code>. First query after a cold start or invalidation scrolls up to 100k points. Say that limit out loud if they ask about scale.</p>
+  </section>
+
+  <section id="models">
+    <h2>The three models</h2>
+    <table>
+      <thead><tr><th>Role</th><th>Model</th><th>Where</th><th>Why this one</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Embedding (bi-encoder)</td>
+          <td>BAAI/bge-m3</td>
+          <td>local, SentenceTransformer</td>
+          <td>1024-d multilingual, encode query and docs independently — fast ANN</td>
+        </tr>
+        <tr>
+          <td>Reranker (cross-encoder)</td>
+          <td>BAAI/bge-reranker-v2-m3</td>
+          <td>local, transformers</td>
+          <td>Sees query and chunk together. Accurate, expensive — so only on ~15–20 candidates</td>
+        </tr>
+        <tr>
+          <td>Generator</td>
+          <td>deepseek-v4-flash</td>
+          <td>API, AsyncOpenAI</td>
+          <td>Cheap/fast generation. <code>extra_body={thinking:{type:disabled}}</code> so we don’t wait on chain-of-thought</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>float16 on MPS/CUDA, float32 on CPU. Reranker uses <code>torch.inference_mode()</code> and a threading lock. Embeddings use an asyncio lock. Device: <code>utils/device.py</code> prefers MPS, then CUDA, then CPU.</p>
+  </section>
+
+  <section id="qdrant">
+    <h2>What a point looks like</h2>
+    <p>Collection: cosine, size 1024. Point id = chunk UUID. Payload:</p>
+    <div class="tree">{
+  "chunk_id": "uuid",
+  "document_id": "uuid",          // all chunks of one PDF
+  "filename": "oauth.pdf",
+  "page_number": 17,
+  "text": "…chunk…",
+  "content_hash": "sha256…"       // same on every chunk of that file
+}</div>
+    <p>Dense search uses the vector. BM25 uses <code>text</code> after a scroll — same payload, different index. List documents scrolls (limit 100k), groups by <code>document_id</code>, counts chunks, takes max page. There is no separate document table — Qdrant <em>is</em> the registry.</p>
+  </section>
+
+  <section id="api">
+    <h2>API surface</h2>
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/</code></td><td>Static chat UI</td></tr>
+        <tr><td>GET</td><td><code>/health</code></td><td>Always <code>{"status":"ok"}</code> — liveness, not readiness</td></tr>
+        <tr><td>POST</td><td><code>/upload</code></td><td>Sync ingest, list of docs</td></tr>
+        <tr><td>POST</td><td><code>/upload/async</code></td><td><code>{tasks:[{filename, task_id}]}</code></td></tr>
+        <tr><td>GET</td><td><code>/tasks/{id}</code></td><td>pending → processing → completed/failed</td></tr>
+        <tr><td>GET</td><td><code>/documents</code></td><td>Aggregated from payloads</td></tr>
+        <tr><td>DELETE</td><td><code>/documents/{id}</code></td><td>204, filter-delete + BM25 invalidate</td></tr>
+        <tr><td>POST</td><td><code>/chat</code></td><td>Full answer + sources</td></tr>
+        <tr><td>POST</td><td><code>/chat/stream</code></td><td>SSE</td></tr>
+        <tr><td>POST</td><td><code>/chat/async</code></td><td>Background chat, poll task — exists, easy to miss</td></tr>
+      </tbody>
+    </table>
+    <h3>SSE events (<code>text/event-stream</code>)</h3>
+    <p>Headers: <code>Cache-Control: no-cache</code>, <code>Connection: keep-alive</code>, <code>X-Accel-Buffering: no</code> (so nginx doesn’t buffer).</p>
+    <div class="tree">status  → Embedding / Hybrid search / Reranking / Generating
+sources → [{page, filename, score}]   // before tokens
+token   → {token}
+metrics → latency_ms, retrieval_ms, rerank_ms, llm_ms, tokens_in/out
+done
+error   → empty corpus</div>
+    <p>Token counts are <code>len(text)//4</code>, not a real tokenizer. Say that if they stare at metrics.</p>
+  </section>
+
+  <section id="concurrency">
+    <h2>Concurrency and ops details they love</h2>
+    <ul>
+      <li><b>Don’t GC background tasks:</b> <code>ChatService</code> / <code>IngestService</code> keep a <code>set[asyncio.Task]</code> and discard on done.</li>
+      <li><b>Sync Qdrant + torch</b> run in <code>asyncio.to_thread</code> so the event loop stays free.</li>
+      <li><b>TaskManager</b> is a process-local dict + <code>threading.Lock</code>, TTL 24h, pruned on create. Lost on restart. Not safe with multiple uvicorn workers.</li>
+      <li><b>Health</b> does not ping Qdrant or DeepSeek.</li>
+      <li><b>Docker:</b> app + Qdrant 1.12, healthcheck, uploads volume, <code>QDRANT_HOST=qdrant</code>. Image is Python 3.14-slim; CI tests 3.12.</li>
+      <li>Latency log line: <code>mode=hybrid embed=… dense_search=… bm25=… rerank=… llm=… total=… retrieved=… final=…</code></li>
+    </ul>
+  </section>
+
+  <section id="files">
+    <h2>File atlas</h2>
+    <div class="tree">app/
+├── main.py                 # FastAPI, static, exception handlers
+├── api/
+│   ├── dependencies.py     # AppContainer + lifespan + Depends
+│   ├── health.py           # GET /health
+│   ├── upload.py           # stream-to-disk, sync + async
+│   ├── chat.py             # sync, async, SSE
+│   ├── documents.py        # list / delete
+│   └── tasks.py            # GET task (404 if unknown)
+├── services/
+│   ├── chat_service.py     # thin → QueryEngine
+│   ├── ingest_service.py   # validate, hash, cleanup, BM25 bust
+│   └── task_manager.py     # in-memory registry
+├── rag/
+│   ├── streaming_ingestion.py
+│   ├── retrieval.py        # dense only
+│   ├── hybrid_retriever.py # dense adapter + BM25 + RRF
+│   └── query_engine.py     # retrieve, rerank, prompt, stream
+├── embeddings/{base,bge}.py
+├── llm/{base,deepseek}.py
+├── vectordb/{base,qdrant}.py
+├── reranker/{base,bge,factory}.py
+├── schemas/{models,tasks}.py
+├── core/{config,exceptions,logging}.py
+├── utils/device.py
+└── static/index.html       # SSE chat UI
+tests/                      # fakes of every ABC; CI + Qdrant service</div>
+    <p>If they ask “where would you change the LLM?” — <code>app/llm/deepseek.py</code> plus settings, not <code>query_engine.py</code>.</p>
+  </section>
+
+  <section id="gaps">
+    <h2>Honest gaps (say these before they find them)</h2>
+    <ul>
+      <li class="gap">No auth, no multi-tenancy, no chat history.</li>
+      <li class="gap">No OCR — digital text only. Scanned PDFs become empty pages, skipped.</li>
+      <li class="gap">Task state is RAM. Restart or a second worker = lost jobs / split brain.</li>
+      <li class="gap">BM25 and list-documents scroll cap at 100k points.</li>
+      <li class="gap"><code>/health</code> is not a dependency check.</li>
+      <li class="gap">Hybrid retriever constructs its <em>own</em> QdrantClient for BM25 scroll, separate from <code>QdrantVectorStore</code>.</li>
+      <li class="ok">README roadmap still lists “unit tests / CI” — they actually exist (<code>.github/workflows/ci.yml</code>, pytest markers). Don’t undersell that.</li>
+    </ul>
+  </section>
+
+  <section id="answers">
+    <h2>Interview answers</h2>
+    <p>Filter as they talk. Each card is a thing you should be able to say in your own words.</p>
+    <input type="search" id="qfilter" placeholder="Filter questions — e.g. rerank, BM25, lock…" aria-label="Filter interview answers">
+
+    <details data-q="what is rag" open>
+      <summary>What is RAG, in this project?</summary>
+      <div class="body">
+        <p class="say">Retrieve relevant PDF chunks, stuff them into a prompt, generate. The LLM is not the knowledge store — Qdrant is. That cuts hallucination and gives page citations.</p>
+      </div>
+    </details>
+    <details data-q="why not fine-tune why rag">
+      <summary>Why RAG instead of fine-tuning?</summary>
+      <div class="body">
+        <p class="say">PDFs change per user, we need citations, and we cannot retrain when a file is uploaded. RAG updates the index; the generator stays a general model.</p>
+      </div>
+    </details>
+    <details data-q="bi-encoder vs cross-encoder rerank two stage">
+      <summary>Why retrieve then rerank?</summary>
+      <div class="body">
+        <p class="say">Bi-encoder embeds query and docs separately so we can ANN-search millions of chunks. Cross-encoder reads the pair and is much better at relevance, but O(n) forward passes. So: cheap recall of 15–20, expensive precision down to 5. Classic two-stage IR.</p>
+      </div>
+    </details>
+    <details data-q="hybrid bm25 dense lexical">
+      <summary>Why hybrid search?</summary>
+      <div class="body">
+        <p class="say">Embeddings miss rare tokens. BM25 misses paraphrases. RRF merges ranks without pretending cosine and BM25 scores share a scale.</p>
+      </div>
+    </details>
+    <details data-q="rrf reciprocal rank fusion scores k 60 fifteen">
+      <summary>Explain RRF in one sentence.</summary>
+      <div class="body">
+        <p class="say">Rank-only: score = Σ 1/(60+rank) from dense and BM25. LlamaIndex hardcodes k=60; we take top 15, then the cross-encoder cuts to 5. Never add cosine to BM25.</p>
+      </div>
+    </details>
+    <details data-q="normalize cosine distance embeddings">
+      <summary>Why cosine + normalize_embeddings=True?</summary>
+      <div class="body">
+        <p class="say">BGE-M3 is trained for cosine. L2-normalizing makes cosine equivalent to dot product, which Qdrant cosine distance expects. Unnormalized vectors would distort nearest neighbors.</p>
+      </div>
+    </details>
+    <details data-q="chunking type sentence splitter page bounded">
+      <summary>What chunking did we use?</summary>
+      <div class="body">
+        <p class="say">Page-bounded sentence splitting. Each PDF page is one LlamaIndex Document, then <code>SentenceSplitter(512, 64)</code>. Not character windows, not LangChain recursive, not semantic chunking. Chunks never cross a page, so “page 17” is true.</p>
+      </div>
+    </details>
+    <details data-q="chunk size overlap 512 64">
+      <summary>Why chunk 512 with overlap 64?</summary>
+      <div class="body">
+        <p class="say">Small enough to be specific, large enough for a sentence of context. Overlap reduces the “answer split across a boundary” miss. SentenceSplitter keeps linguistic boundaries vs naive character windows.</p>
+      </div>
+    </details>
+    <details data-q="is chunking good tables page split">
+      <summary>Is that chunking good?</summary>
+      <div class="body">
+        <p class="say">Good default for cited PDF Q&amp;A. Sentences stay intact, pages stay honest, 512 fits the reranker’s 1024 max length. Weak on tables/code, and an idea that continues on the next page is still split. Keep it until recall@k says otherwise; next step is heading-aware, not jumping to semantic chunks that blur page numbers.</p>
+      </div>
+    </details>
+    <details data-q="dedup sha256 hash filename">
+      <summary>How do you detect duplicate PDFs?</summary>
+      <div class="body">
+        <p class="say">SHA-256 of file bytes, stored on chunk payload, looked up with a payload index. Same bytes, different name → existing document_id, chunks 0, no BM25 rebuild.</p>
+      </div>
+    </details>
+    <details data-q="bm25 how it builds on qdrant scroll keyword">
+      <summary>How does BM25 relate to Qdrant?</summary>
+      <div class="body">
+        <p class="say">Qdrant is not running BM25. We scroll payload <code>text</code> (up to 100k points), build an in-process BM25S index on that snapshot, and keyword-rank <em>chunks</em>. Dense still uses Qdrant HNSW. RRF merges the two lists. Duplicate uploads skip the rebuild because the corpus did not change.</p>
+      </div>
+    </details>
+    <details data-q="bm25 invalidate corpus">
+      <summary>Why invalidate BM25 after ingest/delete?</summary>
+      <div class="body">
+        <p class="say">BM25 is a snapshot of the corpus in RAM. If we don’t bust it, new PDFs are invisible to keyword search and deleted ones still rank.</p>
+      </div>
+    </details>
+    <details data-q="bm25 in process remains restart workers">
+      <summary>Does the BM25 index stay while the app runs?</summary>
+      <div class="body">
+        <p class="say">Yes — in the FastAPI process, until ingest/delete drops it. Next chat rebuilds from Qdrant. Restart or a second uvicorn worker: gone. Qdrant on disk is durable; BM25 is a hot cache.</p>
+      </div>
+    </details>
+    <details data-q="chat history conversation stateless">
+      <summary>Do we keep chat history?</summary>
+      <div class="body">
+        <p class="say">No. API is <code>{"question": "..."}</code> only. Each turn is retrieve + generate. The UI may show old bubbles in the browser; those are not sent back. Follow-ups only work if the PDFs still retrieve the context. Roadmap item, not built.</p>
+      </div>
+    </details>
+    <details data-q="llamaindex llm none openai key">
+      <summary>Why LlamaSettings.llm = None?</summary>
+      <div class="body">
+        <p class="say">LlamaIndex defaults to OpenAI. Fusion retriever would try to spawn an LLM for query generation. We own DeepSeek ourselves and do not want a hidden OpenAI dependency. Tests set the same thing.</p>
+      </div>
+    </details>
+    <details data-q="thinking disabled deepseek extra_body">
+      <summary>Why disable thinking on DeepSeek?</summary>
+      <div class="body">
+        <p class="say">V4 Flash can emit a reasoning channel. For RAG we want grounded answers fast, not a hidden chain-of-thought that adds latency and can ignore the context. <code>extra_body={"thinking":{"type":"disabled"}}</code>.</p>
+      </div>
+    </details>
+    <details data-q="temperature 0">
+      <summary>Why temperature 0?</summary>
+      <div class="body">
+        <p class="say">We want extractive, repeatable answers from context, not creative drift. RAG evaluation is easier when generation is greedy.</p>
+      </div>
+    </details>
+    <details data-q="stream disk memory large pdf">
+      <summary>How do you ingest a 1 GB PDF without blowing RAM?</summary>
+      <div class="body">
+        <p class="say">HTTP body is written in 8 MB aiofiles chunks. Hash streams 64 KB. pypdf walks pages one at a time. Embeddings flush every 16 chunks. Temp file is always unlinked.</p>
+      </div>
+    </details>
+    <details data-q="asyncio to_thread event loop">
+      <summary>Why asyncio.to_thread everywhere?</summary>
+      <div class="body">
+        <p class="say">Qdrant client, SentenceTransformer, and transformers are blocking. to_thread keeps FastAPI able to serve /health and other chats while a model runs. Inference itself is still serialized with locks.</p>
+      </div>
+    </details>
+    <details data-q="lock sentence transformer concurrent">
+      <summary>Why locks on embed and rerank?</summary>
+      <div class="body">
+        <p class="say">One model object is not safe for parallel encode. Two in-flight /chat requests would race internal buffers. Embed uses asyncio.Lock; reranker uses threading.Lock around inference_mode.</p>
+      </div>
+    </details>
+    <details data-q="background task reference garbage collection">
+      <summary>Why keep a set of asyncio.Task?</summary>
+      <div class="body">
+        <p class="say">create_task without a strong ref can be garbage-collected mid-flight in Python. We add to a set and discard on done. Classic FastAPI footgun.</p>
+      </div>
+    </details>
+    <details data-q="delete document chunks no per chunk api">
+      <summary>How do chunks get deleted?</summary>
+      <div class="body">
+        <p class="say"><code>DELETE /documents/{id}</code> → Qdrant filter on <code>document_id</code> → all chunks of that PDF in one op. No per-chunk API. Then BM25 is dropped. Search is correct immediately; HNSW vacuum is later.</p>
+      </div>
+    </details>
+    <details data-q="qdrant hnsw vacuum soft delete threshold rebuild graph">
+      <summary>After delete, does Qdrant still have the vectors in HNSW?</summary>
+      <div class="body">
+        <p class="say">Yes, internally, for a while. Delete is a soft delete on a bitmask — search skips those points right away. We do not rebuild HNSW per PDF. Qdrant’s vacuum optimizer waits until a segment is ~20% deleted and large enough (~1000 vectors), then rebuilds that segment without the tombstones. That’s storage compaction, not search correctness.</p>
+      </div>
+    </details>
+    <details data-q="qdrant segment vs chunk lucene">
+      <summary>What does “segment” mean in Qdrant?</summary>
+      <div class="body">
+        <p class="say">A storage mini-index inside the collection — like a Lucene segment. Own vectors, payload, HNSW. Vacuum rebuilds a dirty segment, not the whole collection. Not our PDF chunks and not one PDF. One document’s chunks can sit in several segments; one segment can hold many documents. The 20% / 1000 thresholds are per segment.</p>
+      </div>
+    </details>
+    <details data-q="payload index filter delete">
+      <summary>Why payload indexes and filter-delete?</summary>
+      <div class="body">
+        <p class="say">Dedup and delete are filters on keyword fields. Without indexes Qdrant scans. Delete-by-filter removes every chunk of a document in one op; scroll-delete would silently leave leftovers past the limit.</p>
+      </div>
+    </details>
+    <details data-q="score meaning cosine rerank logit">
+      <summary>What does source.score mean?</summary>
+      <div class="body">
+        <p class="say">If rerank is on, it is the cross-encoder logit (can be outside 0–1). If rerank is off, it is Qdrant cosine similarity. Don’t compare them across modes.</p>
+      </div>
+    </details>
+    <details data-q="sse vs sync chat latency">
+      <summary>Why SSE instead of only sync chat?</summary>
+      <div class="body">
+        <p class="say">Perceived latency. Status events show embedding/search/rerank while work happens; tokens paint immediately. Sync waits for the full DeepSeek completion. UI uses stream.</p>
+      </div>
+    </details>
+    <details data-q="mps float16 apple silicon">
+      <summary>Apple Silicon?</summary>
+      <div class="body">
+        <p class="say">auto → MPS if available. float16 on GPU-class devices. First boot downloads ~2.3 GB embed + ~1.1 GB rerank into HuggingFace cache, then warmup encodes a dummy string so request #1 is hot.</p>
+      </div>
+    </details>
+    <details data-q="langchain vs llamaindex">
+      <summary>Why LlamaIndex not LangChain?</summary>
+      <div class="body">
+        <p class="say">We needed PDF nodes, SentenceSplitter, BM25Retriever, and QueryFusionRetriever. LlamaIndex is retrieval-native. We still wrap it — QueryEngine is ours; LlamaIndex does not own the HTTP layer. Honest add: hybrid still leaks a second Qdrant client.</p>
+      </div>
+    </details>
+    <details data-q="multi tenancy auth next">
+      <summary>How would you add multi-tenancy?</summary>
+      <div class="body">
+        <p class="say">Auth at the router. Payload field <code>tenant_id</code> + Qdrant filter on every search/scroll/delete. Collection-per-tenant if isolation matters more than ops cost. TaskManager and BM25 become per-tenant or move to Redis/Qdrant sparse.</p>
+      </div>
+    </details>
+    <details data-q="evaluate ragas quality">
+      <summary>How would you evaluate quality?</summary>
+      <div class="body">
+        <p class="say">Gold questions with expected pages. Measure recall@k before rerank, nDCG after rerank, faithfulness of answers to context (Ragas/DeepEval — listed on the roadmap). Latency breakdown is already logged per stage.</p>
+      </div>
+    </details>
+    <details data-q="failure modes empty pdf qdrant down">
+      <summary>What happens when things fail?</summary>
+      <div class="body">
+        <p class="say">Bad PDF / empty upload → 400 InvalidPDFError / EmptyUploadError. Qdrant down → 503 VectorDBUnavailableError (dedup fail-fast, not “not a duplicate”). DeepSeek down → 503 LLMUnavailableError. Missing collection on search → empty results. Unknown task → 404. Unexpected → 500 InternalError without traceback in the body.</p>
+      </div>
+    </details>
+    <details data-q="how many servers docker compose qdrant deepseek">
+      <summary>How many servers are we running?</summary>
+      <div class="body">
+        <p class="say">Two that we start: FastAPI on 8000 and Qdrant on 6333. DeepSeek is a third machine we don’t operate — HTTPS from the app. Embeddings, reranker, BM25, and task status all live inside the FastAPI process. Scale that process to multiple workers and in-memory BM25/tasks split. No Redis/Celery in this repo.</p>
+      </div>
+    </details>
+    <details data-q="tests ci fakes">
+      <summary>How is it tested?</summary>
+      <div class="body">
+        <p class="say">Unit tests use FakeEmbedder / FakeVectorStore / FakeLLM implementing the same ABCs — no torch, no network. Hybrid tests monkeypatch QdrantClient. Integration job spins Qdrant in GitHub Actions when <code>RUN_INTEGRATION=1</code>. pytest asyncio_mode auto.</p>
+      </div>
+    </details>
+  </section>
+
+  <section id="if-asked">
+    <h2>If they poke a specific file</h2>
+    <table>
+      <thead><tr><th>They say</th><th>You open</th><th>You say</th></tr></thead>
+      <tbody>
+        <tr><td>“Show me DI”</td><td><code>api/dependencies.py</code></td><td>Container + lifespan warmup + Depends getters</td></tr>
+        <tr><td>“Show me the prompt”</td><td><code>rag/query_engine.py</code> SYSTEM_PROMPT</td><td>Context-only, numbered citations, Sources section</td></tr>
+        <tr><td>“Show me hybrid”</td><td><code>rag/hybrid_retriever.py</code></td><td>Adapter, BM25 from_defaults, RRF k=60 → 15</td></tr>
+        <tr><td>“Show me delete”</td><td><code>vectordb/qdrant.py</code> <code>delete_document</code></td><td>Filter on document_id; vacuum is Qdrant’s later</td></tr>
+        <tr><td>“Show me ingest”</td><td><code>rag/streaming_ingestion.py</code></td><td>Page loop, batch 16, hash short-circuit</td></tr>
+        <tr><td>“Show me Qdrant”</td><td><code>vectordb/qdrant.py</code></td><td>ensure_collection, indexes, query_points, filter delete</td></tr>
+        <tr><td>“Config?”</td><td><code>core/config.py</code></td><td>pydantic-settings, extra=ignore</td></tr>
+        <tr><td>“A bug you’d fix Monday”</td><td>TaskManager / health / BM25 100k</td><td>Pick one, propose Redis tasks + readiness probe</td></tr>
+      </tbody>
+    </table>
+    <div class="callout spark">
+      <div class="label">Closing line</div>
+      <p style="margin:0">“The architecture is deliberately boring on the outside — REST, SSE, health — and strict on the inside: vendor adapters, two-stage retrieval, and ingestion that does not load a gigabyte PDF into RAM. The next production gaps are auth, durable tasks, and a real document registry.”</p>
+    </div>
+  </section>
+
+  <footer>
+    Generated from this repo’s source, not the README alone. README still lists tests/CI as roadmap; both are in tree. Open this file anytime: <code>architecture-brief.html</code>
+  </footer>
+</main>
+</div>
+
+<script type="module">
+  const modes = {
+    dense: {
+      show: ["q", "embed", "dense", "ctx", "llm"],
+      blurb: "HYBRID off, RERANK off. Embed → Qdrant top_k=10 → LLM. Fastest, weakest ranking. scores = cosine."
+    },
+    rerank: {
+      show: ["q", "embed", "dense", "rerank", "ctx", "llm"],
+      blurb: "HYBRID off, RERANK on. Retrieve 20, cross-encode down to 5. Still no lexical match. scores = reranker logits."
+    },
+    hybrid: {
+      show: ["q", "embed", "dense", "bm25", "rrf", "rerank", "ctx", "llm"],
+      blurb: "Defaults. Dense 10 + BM25 10 → RRF 15 → rerank 5 → DeepSeek. This is the path to walk in the interview."
+    }
+  };
+
+  const blurb = document.getElementById("mode-blurb");
+  const stages = [...document.querySelectorAll("#pipeline-stages .stage")];
+  const ks = [...document.querySelectorAll("#k-values .k")];
+  const buttons = [...document.querySelectorAll(".mode-bar button")];
+
+  function setMode(name) {
+    const m = modes[name];
+    buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === name)));
+    stages.forEach((s) => {
+      s.style.opacity = m.show.includes(s.dataset.step) ? "1" : "0.28";
+    });
+    ks.forEach((k) => {
+      const tags = k.dataset.show.split(" ");
+      k.classList.toggle("off", !tags.includes(name));
+    });
+    blurb.textContent = m.blurb;
+  }
+  buttons.forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+  setMode("hybrid");
+
+  const filter = document.getElementById("qfilter");
+  const cards = [...document.querySelectorAll("#answers details")];
+  filter.addEventListener("input", () => {
+    const q = filter.value.trim().toLowerCase();
+    cards.forEach((d) => {
+      const hay = (d.dataset.q + " " + d.textContent).toLowerCase();
+      d.classList.toggle("hidden", Boolean(q) && !hay.includes(q));
+    });
+  });
+
+  const nav = document.querySelector("nav.toc");
+  const navLinks = [...nav.querySelectorAll("a")];
+  const sections = [...document.querySelectorAll("main section[id]")];
+
+  function mark(link) {
+    navLinks.forEach((a) => {
+      const on = a === link;
+      a.classList.toggle("\\:target-current", on);
+      a.setAttribute("aria-current", on ? "true" : "false");
+    });
+  }
+
+  if (CSS.supports("scroll-target-group: auto")) {
+    const sync = () => mark(document.querySelector("nav.toc a:target-current"));
+    sync();
+    document.addEventListener("scrollend", sync);
+  } else {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const id = entry.target.id;
+        mark(navLinks.find((a) => a.getAttribute("href") === `#${id}`));
+      });
+    }, { rootMargin: "-45% 0px -45% 0px", threshold: 0 });
+    sections.forEach((s) => io.observe(s));
+  }
+</script>
+</body>
+</html>
